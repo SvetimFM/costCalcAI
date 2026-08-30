@@ -1,0 +1,136 @@
+TITLE: [Community] RTX 5090 (Blackwell sm_120) + WSL2 2.7.0: CUDA graphs work — benchmarks + full config
+DATE: 2026-03-17T01:02:54Z
+URL: https://github.com/vllm-project/vllm/issues/37242
+
+# RTX 5090 + WSL2 2.7.0: vLLM CUDA Graphs Work on Blackwell (Benchmarks + Full Config)
+
+**TL;DR:** CUDA graph capture works on RTX 5090 (sm_120 Blackwell) under WSL2 2.7.0 — something widely believed to be permanently broken. With the right config, vLLM hits **~140 tok/s on Qwen3-14B-AWQ**, beating Ollama by 26% and 8x faster than enforce-eager mode.
+
+---
+
+## Hardware & Software
+
+- **GPU:** RTX 5090 32GB GDDR7 (sm_120, Blackwell)
+- **OS:** Windows 11 + WSL2 2.7.0 (pre-release), Ubuntu 22.04
+- **Kernel:** 6.6.114.1-microsoft-standard-WSL2
+- **CUDA:** 12.8, driver 581.80
+- **vLLM:** 0.17.1
+- **Model:** Qwen/Qwen3-14B-AWQ (awq_marlin quantization)
+
+---
+
+## The Problem Everyone Hit
+
+Running vLLM on RTX 5090 + WSL2 caused a hard crash during CUDA graph capture:
+
+```
+cudaErrorUnknown: unknown error
+```
+
+The community consensus was this was a permanent WSL2 limitation with Blackwell sm_120 — the dxgkrnl Hyper-V GPU virtualization layer not supporting CUDA graph capture on the new architecture. Most workarounds used `--enforce-eager` which disables CUDA graphs entirely.
+
+## What Actually Fixed It
+
+WSL2 **2.7.0** (pre-release, December 2025) shipped significant dxgkrnl improvements for Blackwell. But you also need the system to be stable — the CUDA graph crash is easily triggered by other services racing for the GPU at boot.
+
+**Root causes we found and fixed:**
+
+**1. Tailscale in WSL2** — intercepts network at boot, interferes with CUDA initialization. Remove it:
+```bash
+apt remove tailscale
+```
+
+**2. nvidia-cdi-refresh** — probes CUDA devices at boot ~11s, races with driver init on Blackwell. Hard-mask it:
+```bash
+ln -sf /dev/null /etc/systemd/system/nvidia-cdi-refresh.path
+ln -sf /dev/null /etc/systemd/system/nvidia-cdi-refresh.service
+systemctl daemon-reload
+```
+⚠️ Re-run after every `apt upgrade` of nvidia-container-toolkit — it recreates the symlinks.
+
+**3. CUDA services starting too early** — any service using CUDA (Ollama, ComfyUI, etc.) needs a boot delay:
+```ini
+# /etc/systemd/system/ollama.service.d/boot-delay.conf
+[Service]
+ExecStartPre=/bin/sleep 45
+```
+
+With these fixes on WSL2 2.7.0: **CUDA graphs work. Stable across reboots.**
+
+---
+
+## Benchmark Results
+
+Same prompt, 300 completion tokens, Qwen3-14B, RTX 5090:
+
+| Engine | Model | Quantization | Mode | tok/s |
+|--------|-------|-------------|------|-------|
+| **vLLM 0.17.1** | Qwen3-14B-AWQ | awq_marlin | **CUDA graphs** | **~140** |
+| Ollama | qwen3:14b | q4_K_M | default | ~111 |
+| vLLM 0.17.1 | Qwen3-14B-AWQ | awq_marlin | enforce-eager | ~17 |
+
+**CUDA graphs = 8x faster than enforce-eager. vLLM = 26% faster than Ollama on same model.**
+
+Bare metal Linux comparison: ~180-200 tok/s (WSL2 is ~70% of native).
+
+---
+
+## Optimizations That Work
+
+**FlashInfer attention backend (+8%):**
+```bash
+--attention-backend flashinfer
+```
+Confirmed: `Using AttentionBackendEnum.FLASHINFER backend`  
+Also enables `CUDAGraphMode.FULL_AND_PIECEWISE` with torch.compile.
+
+**WSL2 memory:**
+```ini
+# C:\Users\<user>\.wslconfig
+[wsl2]
+memory=56GB
+```
+Bumping from 48GB → 56GB improved throughput noticeably.
+
+**Env vars:**
+```bash
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+VLLM_WORKER_MULTIPROC_METHOD=spawn
+```
+
+**Full working vLLM command:**
+```bash
+python3 -m vllm.entrypoints.openai.api_server \
+  --model /path/to/Qwen3-14B-AWQ \
+  --quantization awq_marlin \
+  --dtype float16 \
+  --gpu-memory-utilization 0.85 \
+  --max-model-len 8192 \
+  --port 11436 \
+  --served-model-name qwen3-14b \
+  --attention-backend flashinfer \
+  --max-num-batched-tokens 8192 \
+  --swap-space 4
+```
+
+---
+
+## What Still Doesn't Work on WSL2+Blackwell
+
+**FP8 quantization (W8A8):** 44.9 tok/s — 3x *slower* than AWQ. The RTX 5090's native FP8 tensor cores are not exposed through dxgkrnl yet. Falls back to an emulated path. Skip FP8 until MS ships dxgkrnl support.
+
+**Speculative decoding with draft model:** Generic Qwen3-1.7B as draft gives only 1.4% acceptance rate (need 70%+ to break even). No Qwen3-14B EAGLE draft exists on HuggingFace yet.
+
+**N-gram speculative decoding:** Scheduling overhead outweighs gains on single-user workloads (~102 tok/s vs 140 baseline).
+
+---
+
+## Key Takeaways
+
+1. **WSL2 2.7.0 + stability fixes = CUDA graphs on Blackwell.** Update from stable 2.6.3.
+2. **enforce-eager is no longer necessary** on RTX 5090 with WSL2 2.7.0.
+3. **AWQ marlin beats FP8 on WSL2** — counterintuitive, but dxgkrnl doesn't expose Blackwell FP8 cores yet.
+4. **vLLM beats Ollama by 26%** on same model/hardware when CUDA graphs are working.
+5. **nvidia-cdi-refresh is a silent boot killer** — mask it if you use nvidia-container-toolkit.
+
+Tested on real hardware over a 2-day session with systematic benchmarking. Happy to answer questions.

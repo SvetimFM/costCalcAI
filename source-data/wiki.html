@@ -1,0 +1,1386 @@
+<!doctype html>
+<html lang="en" class="wa-theme-default wa-palette-default wa-brand-blue">
+  <head>
+    <script>
+      (() => {
+        const root = document.documentElement;
+        const dark = window.matchMedia("(prefers-color-scheme: dark)");
+        const apply = (dark) => {
+          root.classList.toggle("wa-dark", dark);
+          root.classList.toggle("wa-light", !dark);
+        };
+        apply(dark.matches);
+        dark.addEventListener("change", (e) => apply(e.matches));
+      })();
+    </script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>llama.cpp Performance · Strix Halo HomeLab Wiki</title>
+    <link rel="icon" href="https://raw.githubusercontent.com/kyuz0/strixhalo-homelab/HEAD/README/amd-favicon.png" />
+    <link rel="stylesheet" href="https://ka-f.webawesome.com/webawesome@3.12.0/styles/themes/default.css" />
+    <link rel="stylesheet" href="https://ka-f.webawesome.com/webawesome@3.12.0/styles/utilities.css" />
+    <link rel="stylesheet" href="https://ka-f.webawesome.com/webawesome@3.12.0/styles/native.css" />
+    <script type="module" src="https://ka-f.webawesome.com/webawesome@3.12.0/webawesome.loader.js"></script>
+    <style>
+      /* ---- page shell ---- */
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+        min-height: 0;
+      }
+      @media (min-width: 64rem) {
+        .layout {
+          grid-template-columns: 16rem minmax(0, 1fr) 13rem;
+        }
+        .layout.no-toc {
+          grid-template-columns: 16rem minmax(0, 1fr);
+        }
+      }
+
+      aside.sidebar {
+        display: none;
+        background: var(--wa-color-surface-raised);
+        border-inline-end: 1px solid var(--wa-color-surface-border);
+        overflow-y: auto;
+      }
+      @media (min-width: 64rem) {
+        aside.sidebar {
+          display: flex;
+          flex-direction: column;
+        }
+      }
+      .sidebar-header {
+        padding: 1rem 1.25rem;
+        font-size: 1.125rem;
+        font-weight: 700;
+        border-bottom: 1px solid var(--wa-color-surface-border);
+      }
+      .sidebar-header a {
+        color: var(--wa-color-text-normal);
+        text-decoration: none;
+      }
+      .sidebar-header a:hover {
+        color: var(--wa-color-focus);
+      }
+      .sidebar-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .sidebar-favicon {
+        width: 1.5rem;
+        height: 1.5rem;
+        object-fit: contain;
+        flex-shrink: 0;
+      }
+      .sidebar-search {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        padding: 0.5rem 1rem;
+        background: color-mix(in srgb, var(--wa-color-surface-raised) 85%, transparent);
+        backdrop-filter: blur(6px);
+        border-bottom: 1px solid var(--wa-color-surface-border);
+      }
+      .sidebar-search input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.375rem 0.75rem;
+        font: inherit;
+        font-size: 0.875rem;
+        color: var(--wa-color-text-normal);
+        background: var(--wa-color-surface-default);
+        border: 1px solid var(--wa-color-surface-border);
+        border-radius: 0.5rem;
+      }
+      .sidebar-search input:focus {
+        outline: 2px solid var(--wa-color-focus);
+        outline-offset: 1px;
+      }
+      .sidebar-tree {
+        padding: 0.75rem 0.75rem 1rem;
+        flex: 1;
+      }
+
+      main {
+        overflow-y: auto;
+        min-width: 0;
+      }
+
+      .content-wrap {
+        /* Slightly wider than classic 65ch so tables and code get breathing
+         room, now that the nav rails are slimmer. */
+        max-width: 78ch;
+        margin: 0 auto;
+        padding: 2.5rem 1.5rem 3.5rem;
+      }
+      .page-title {
+        margin: 0 0 1.5rem;
+        font-size: 2rem;
+        line-height: 1.2;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--wa-color-text-normal);
+      }
+      .page-footer {
+        margin-top: 3rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--wa-color-surface-border);
+        font-size: 0.75rem;
+        color: var(--wa-color-text-quiet);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem 0.75rem;
+      }
+      .page-footer a {
+        color: var(--wa-color-text-normal);
+        overflow-wrap: anywhere;
+      }
+      .page-footer a:hover {
+        color: var(--wa-color-text-link);
+      }
+
+      .sidebar-open {
+        display: block;
+      }
+      @media (min-width: 64rem) {
+        .sidebar-open {
+          display: flex;
+        }
+      }
+
+      .mobile-nav {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 35; /* below the drawer+backdrop (both z-index 40) */
+        height: 3.5rem;
+        padding: 0 1rem;
+        align-items: center;
+        gap: 0.75rem;
+        background: var(--wa-color-surface-raised);
+        border-bottom: 1px solid var(--wa-color-surface-border);
+      }
+      @media (max-width: 63.999rem) {
+        .mobile-nav {
+          display: flex;
+        }
+      }
+      @media (min-width: 64rem) {
+        #menu-btn,
+        #toc-btn {
+          display: none;
+        }
+      }
+      .mobile-nav-spacer {
+        flex: 1;
+      }
+      .mobile-nav .nav-btn {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.45rem 0.9rem;
+        font: inherit;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--wa-color-brand-on-loud, #fff);
+        background: var(--wa-color-brand-fill-loud);
+        border: 0;
+        border-radius: 9999px;
+        cursor: pointer;
+      }
+      .mobile-nav .nav-btn:hover {
+        background: var(--wa-color-brand-fill-normal);
+      }
+
+      @media (max-width: 63.999rem) {
+        .content-wrap {
+          padding-top: 5.5rem;
+        }
+      }
+
+      /* ---- mobile drawers ---- */
+      .mobile-drawer {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        display: none;
+      }
+      .mobile-drawer.open {
+        display: block;
+      }
+      .mobile-drawer .backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgb(0 0 0 / 0.6);
+      }
+      .mobile-drawer .drawer {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        width: 20rem;
+        max-width: 85vw;
+        background: var(--wa-color-surface-raised);
+        overflow-y: auto;
+        padding: 1rem;
+      }
+      #mobile-tree .drawer {
+        left: 0;
+        border-inline-end: 1px solid var(--wa-color-surface-border);
+      }
+      #mobile-toc .drawer {
+        right: 0;
+        border-inline-start: 1px solid var(--wa-color-surface-border);
+      }
+
+      /* ---- content prose ---- */
+      #content h1,
+      #content h2,
+      #content h3,
+      #content h4,
+      #content h5,
+      #content h6 {
+        scroll-margin-top: 1.5rem;
+      }
+      /* GitHub-style alerts (markdown-alert markup emitted by markdown-it-github-alerts).*/
+      .markdown-alert {
+        border-left: 6px solid var(--wa-color-surface-border);
+        border-radius: 0 0.5rem 0.5rem 0;
+        padding: 0.75rem 1rem;
+        background: color-mix(in srgb, var(--wa-color-surface-lowered) 45%, transparent);
+        margin: 1rem 0;
+      }
+      .markdown-alert > p {
+        margin: 0.25rem 0;
+      }
+      .markdown-alert-title {
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.25rem;
+      }
+      .markdown-alert-title svg {
+        width: 1em;
+        height: 1em;
+        fill: currentColor;
+      }
+      /* Accent colors that read well on both light and dark surfaces. */
+      .markdown-alert-note {
+        border-left-color: #0b5cad;
+      }
+      .markdown-alert-note .markdown-alert-title {
+        color: #0b5cad;
+      }
+      .markdown-alert-tip {
+        border-left-color: #16794c;
+      }
+      .markdown-alert-tip .markdown-alert-title {
+        color: #16794c;
+      }
+      .markdown-alert-important {
+        border-left-color: #6b40c2;
+      }
+      .markdown-alert-important .markdown-alert-title {
+        color: #6b40c2;
+      }
+      .markdown-alert-warning {
+        border-left-color: #9a6700;
+      }
+      .markdown-alert-warning .markdown-alert-title {
+        color: #9a6700;
+      }
+      .markdown-alert-caution {
+        border-left-color: #cf222e;
+      }
+      .markdown-alert-caution .markdown-alert-title {
+        color: #cf222e;
+      }
+      /* Dark mode: brighter tint variants that read well on dark surfaces. */
+      .wa-dark .markdown-alert-note {
+        border-left-color: #58a6ff;
+      }
+      .wa-dark .markdown-alert-note .markdown-alert-title {
+        color: #58a6ff;
+      }
+      .wa-dark .markdown-alert-tip {
+        border-left-color: #3fb950;
+      }
+      .wa-dark .markdown-alert-tip .markdown-alert-title {
+        color: #3fb950;
+      }
+      .wa-dark .markdown-alert-important {
+        border-left-color: #bc8cff;
+      }
+      .wa-dark .markdown-alert-important .markdown-alert-title {
+        color: #bc8cff;
+      }
+      .wa-dark .markdown-alert-warning {
+        border-left-color: #d29922;
+      }
+      .wa-dark .markdown-alert-warning .markdown-alert-title {
+        color: #d29922;
+      }
+      .wa-dark .markdown-alert-caution {
+        border-left-color: #f85149;
+      }
+      .wa-dark .markdown-alert-caution .markdown-alert-title {
+        color: #f85149;
+      }
+
+      /* ---- TOC ---- */
+      #toc-nav {
+        position: sticky;
+        top: 0;
+        background: var(--wa-color-surface-raised);
+        border-inline-start: 1px solid var(--wa-color-surface-border);
+      }
+      /* On mobile the desktop TOC rail is hidden; "On this page" opens as a
+       right-side drawer via #toc-btn in the top bar. */
+      @media (max-width: 63.999rem) {
+        #toc-nav {
+          display: none;
+        }
+      }
+      .toc-header {
+        padding: 1rem 1.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--wa-color-text-quiet);
+        border-bottom: 1px solid var(--wa-color-surface-border);
+      }
+      .toc-list {
+        padding: 1rem 1rem 1.5rem;
+        font-size: 0.875rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+      }
+
+      /* ---- tables: allow wrapping of long words/URLs ---- */
+      #content table {
+        table-layout: auto;
+        min-width: 0;
+      }
+      #content table th,
+      #content table td {
+        overflow-wrap: anywhere;
+        word-break: normal;
+      }
+      #content a {
+        overflow-wrap: anywhere;
+        word-break: normal;
+      }
+      .toc-list a {
+        color: var(--wa-color-text-quiet);
+        text-decoration: none;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.375rem;
+      }
+      .toc-list a:hover {
+        color: var(--wa-color-text-normal);
+        background: color-mix(in srgb, var(--wa-color-surface-raised) 50%, transparent);
+      }
+      .toc-list a.toc-level-2 {
+        padding-left: 0.5rem;
+      }
+      .toc-list a.toc-level-3 {
+        padding-left: 1.25rem;
+      }
+      .toc-list a.toc-level-4 {
+        padding-left: 2rem;
+      }
+      .toc-list a.toc-active {
+        color: var(--wa-color-text-link);
+        font-weight: 600;
+      }
+
+      /* ---- tree sizing ---- */
+      wa-tree {
+        font-size: 0.875rem;
+      }
+      wa-tree-item a {
+        color: inherit;
+        text-decoration: none;
+      }
+      wa-tree-item a:hover {
+        color: var(--wa-color-text-link);
+      }
+      wa-tree-item.selected a,
+      wa-tree-item[selected] a {
+        color: var(--wa-color-text-link);
+        font-weight: 600;
+      }
+      .sidebar,
+      #mobile-tree .drawer {
+        --wa-color-neutral-fill-quiet: color-mix(in srgb, var(--wa-color-brand-fill-loud) 14%, transparent);
+      }
+      .tree-section-header {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        color: var(--wa-color-text-normal);
+      }
+      .tree-section-header wa-icon {
+        color: var(--wa-color-text-link);
+      }
+
+      /* tree filter states (toggled by site.js) */
+      wa-tree-item.item-hidden {
+        display: none;
+      }
+      wa-tree-item a.item-link-hidden {
+        display: none;
+      }
+
+      /* Hide the raw (un-upgraded) custom elements until Web Awesome's
+       definitions load, so the tree doesn't flash as a blob of text.
+       The [hidden] attribute (set by site.js once the components are
+       upgraded) is essential because the browsers don't style
+       :not(:defined) until the elements are upgraded. */
+      wa-tree:not(:defined),
+      wa-tree wa-tree-item:not(:defined) {
+        display: none;
+      }
+      wa-tree[hidden],
+      wa-tree-item[hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <!-- left: page tree -->
+      <aside class="sidebar" id="sidebar-desktop">
+        <div class="sidebar-header">
+          <a class="sidebar-brand" href="../../">
+            <img
+              class="sidebar-favicon"
+              src="https://raw.githubusercontent.com/kyuz0/strixhalo-homelab/HEAD/README/amd-favicon.png"
+              alt=""
+              aria-hidden="true" />
+            <span>Strix&nbsp;Halo&nbsp;Wiki</span>
+          </a>
+        </div>
+        <div class="sidebar-search">
+          <input id="tree-search" type="search" placeholder="Filter pages…" aria-label="Filter pages" />
+        </div>
+        <nav id="tree" class="sidebar-tree" aria-label="Wiki pages" data-active-key="AI/llamacpp-performance">
+          <wa-tree>
+            <wa-tree-item><a href="../../" data-path="README">Home</a></wa-tree-item>
+            <wa-tree-item expanded
+              ><a class="tree-section-header" href="../" data-path="AI" aria-current="page">AI</a>
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../AI_Capabilities_Overview/" data-path="AI/AI_Capabilities_Overview">AI Capabilities Overview</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"><a href="../Clustering/" data-path="AI/Clustering">Clustering</a></wa-tree-item>
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../Clustering_with_RDMA/" data-path="AI/Clustering_with_RDMA">Clustering with RDMA</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../Fine-tuning-eval/" data-path="AI/Fine-tuning-eval">Fine-tuning-eval</a></wa-tree-item
+              >
+              <wa-tree-item selected slot="children" role="treeitem"
+                ><a href="./" data-path="AI/llamacpp-performance" aria-current="page">llamacpp-performance</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../llamacpp-with-ROCm/" data-path="AI/llamacpp-with-ROCm">llamacpp-with-ROCm</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"><a href="../vLLM/" data-path="AI/vLLM">vLLM</a></wa-tree-item>
+            </wa-tree-item>
+            <wa-tree-item
+              ><a class="tree-section-header" href="../../Guides/" data-path="Guides">Guides</a>
+              <wa-tree-item slot="children" role="treeitem"
+                ><a class="tree-section-header" href="../../Guides/Sixunited_AXB35/" data-path="Guides/Sixunited_AXB35">Sixunited AXB35</a>
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a
+                    href="../../Guides/Sixunited_AXB35/Power_Mode_and_Fan_Control/"
+                    data-path="Guides/Sixunited_AXB35/Power_Mode_and_Fan_Control"
+                    >Power Mode and Fan Control</a
+                  ></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a
+                    href="../../Guides/Sixunited_AXB35/Replacing_Thermal_Interfaces_On_GMKtec_EVO-X2/"
+                    data-path="Guides/Sixunited_AXB35/Replacing_Thermal_Interfaces_On_GMKtec_EVO-X2"
+                    >Replacing Thermal Interfaces On GMKtec EVO-X2</a
+                  ></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a
+                    href="../../Guides/Sixunited_AXB35/Restoring_Corrupted_BIOS/"
+                    data-path="Guides/Sixunited_AXB35/Restoring_Corrupted_BIOS"
+                    >Restoring Corrupted BIOS</a
+                  ></wa-tree-item
+                >
+              </wa-tree-item>
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Guides/Buyer's_Guide/" data-path="Guides/Buyer's_Guide">Buyer's Guide</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Guides/C-States/" data-path="Guides/C-States">C-States</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Guides/External_GPU/" data-path="Guides/External_GPU">External GPU</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Guides/Hardware_Monitoring/" data-path="Guides/Hardware_Monitoring">Hardware Monitoring</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Guides/Kubernetes/" data-path="Guides/Kubernetes">Kubernetes</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Guides/Power_Modes_and_Performance/" data-path="Guides/Power_Modes_and_Performance"
+                  >Power Modes and Performance</a
+                ></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Guides/VM_iGPU_Passthrough/" data-path="Guides/VM_iGPU_Passthrough">VM iGPU Passthrough</a></wa-tree-item
+              >
+            </wa-tree-item>
+            <wa-tree-item
+              ><a class="tree-section-header" href="../../Hardware/" data-path="Hardware">Hardware</a>
+              <wa-tree-item slot="children" role="treeitem"
+                ><a class="tree-section-header" href="../../Hardware/Boards/" data-path="Hardware/Boards">Boards</a>
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a class="tree-section-header" href="../../Hardware/Boards/Sixunited_AXB35/" data-path="Hardware/Boards/Sixunited_AXB35"
+                    >Sixunited AXB35</a
+                  >
+                  <wa-tree-item slot="children" role="treeitem"
+                    ><a href="../../Hardware/Boards/Sixunited_AXB35/Firmware/" data-path="Hardware/Boards/Sixunited_AXB35/Firmware"
+                      >Firmware</a
+                    ></wa-tree-item
+                  >
+                </wa-tree-item>
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/Boards/Framework_Desktop_Mainboard/" data-path="Hardware/Boards/Framework_Desktop_Mainboard"
+                    >Framework Desktop Mainboard</a
+                  ></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/Boards/MeeGoPad_100AM/" data-path="Hardware/Boards/MeeGoPad_100AM"
+                    >MeeGoPad 100AM</a
+                  ></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/Boards/Sixunited_AXB35/" data-path="Hardware/Boards/Sixunited_AXB35"
+                    >Sixunited AXB35</a
+                  ></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/Boards/Sixunited_STHT1/" data-path="Hardware/Boards/Sixunited_STHT1"
+                    >Sixunited STHT1</a
+                  ></wa-tree-item
+                >
+              </wa-tree-item>
+              <wa-tree-item slot="children" role="treeitem"
+                ><a class="tree-section-header" href="../../Hardware/PCs/" data-path="Hardware/PCs">PCs</a>
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/Abee_AI_Station/" data-path="Hardware/PCs/Abee_AI_Station">Abee AI Station</a></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/Aoostar_NEX395/" data-path="Hardware/PCs/Aoostar_NEX395">Aoostar NEX395</a></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/Beelink_GTR9_Pro/" data-path="Hardware/PCs/Beelink_GTR9_Pro"
+                    >Beelink GTR9 Pro</a
+                  ></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/Bosgame_M5/" data-path="Hardware/PCs/Bosgame_M5">Bosgame M5</a></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/Corsair_AI_Workstation_300/" data-path="Hardware/PCs/Corsair_AI_Workstation_300"
+                    >Corsair AI Workstation 300</a
+                  ></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/FEVM_FA-EX9/" data-path="Hardware/PCs/FEVM_FA-EX9">FEVM FA-EX9</a></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/Framework_Desktop/" data-path="Hardware/PCs/Framework_Desktop"
+                    >Framework Desktop</a
+                  ></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/GEEKOM A9 Mega/" data-path="Hardware/PCs/GEEKOM A9 Mega">GEEKOM A9 Mega</a></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/GMKtec_EVO-X2/" data-path="Hardware/PCs/GMKtec_EVO-X2">GMKtec EVO-X2</a></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/Hilbert_Super_Workstation/" data-path="Hardware/PCs/Hilbert_Super_Workstation"
+                    >Hilbert Super Workstation</a
+                  ></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/HP_Z2_Mini_G1a/" data-path="Hardware/PCs/HP_Z2_Mini_G1a">HP Z2 Mini G1a</a></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/Minisforum_MS-S1_MAX/" data-path="Hardware/PCs/Minisforum_MS-S1_MAX"
+                    >Minisforum MS-S1 MAX</a
+                  ></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/Minix_Elite_ER939-AI/" data-path="Hardware/PCs/Minix_Elite_ER939-AI"
+                    >Minix Elite ER939-AI</a
+                  ></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/Morefine_H1/" data-path="Hardware/PCs/Morefine_H1">Morefine H1</a></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/MSI_AI_Edge/" data-path="Hardware/PCs/MSI_AI_Edge">MSI AI Edge</a></wa-tree-item
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/PCs/NIMO_AI_MiniPC/" data-path="Hardware/PCs/NIMO_AI_MiniPC">NIMO AI MiniPC</a></wa-tree-item
+                >
+              </wa-tree-item>
+            </wa-tree-item></wa-tree
+          >
+        </nav>
+      </aside>
+
+      <!-- center: content -->
+      <main>
+        <div class="content-wrap">
+          <h1 class="page-title">llama.cpp Performance</h1>
+          <article id="content" class="wa-prose">
+            <p>There are some tests that have been run on Strix Halo that can be useful to get a ballpark idea of performance:</p>
+            <ul>
+              <li>
+                <a href="https://github.com/lhl/strix-halo-testing/tree/main/llm-bench" target="_blank" rel="noopener"
+                  >lhl Strix Halo LLM Benchmark Results</a
+                >
+                - scripted tests from 2025-08 on a number of models, sweeping pp and tg from 1-4096 across a number of backends
+              </li>
+              <li>
+                <a href="https://kyuz0.github.io/amd-strix-halo-toolboxes/" target="_blank" rel="noopener"
+                  >kyuz0 AMD Ryzen AI MAX+ 395 &quot;Strix Halo&quot; — Llama.cpp Backend Performance Comparison</a
+                >
+                - automated pp512/tg128 tests across a number of backends; may be more up-to-date
+              </li>
+            </ul>
+            <h2 id="llama-bench-basics" tabindex="-1">llama-bench Basics</h2>
+            <p>
+              It's important to note that both AMD, ROCm and Vulkan drivers/libs and llama.cpp are constantly being updated and that
+              different models (and different context lengths!) will perform differently, so if you're looking for the best performance, you
+              should run your own testing which backend and settings work best for your own use case.
+            </p>
+            <p>
+              For testing llama.cpp performance, it is best to use the included <code>llama-bench</code>. By default it generates a
+              <code>pp512</code> and <code>tg128</code> number, running each test 5 times.
+            </p>
+            <p>Here are the most important flags you should be aware of:</p>
+            <ul>
+              <li>
+                <code>-ngl 999</code> - This specifies the number of layers of a model is loaded to the GPU and is by default set to
+                <code>99</code> - there are some large models that are larger so you may want to set <code>999</code> in those cases. Even
+                though Strix Halo has unified memory, you always want to load all your layers to &quot;GPU&quot; memory as it has full
+                access to memory bandwidth (about 2X faster than CPU)
+              </li>
+              <li>
+                <code>--mmap 0</code> - Memory mapping can allow lazy loading of a model and is enabled by default, but when you load large
+                models to the GPU, it will make loading moderately slower for Vulkan, and catastrophically slower for ROCm. You should
+                always set <code>--mmap 0</code> or <code>--no-mmap</code> (different flags for different commands, check
+                <code>--help</code> for the right one for each command if necessary)
+              </li>
+              <li>
+                <code>-fa 1</code> - while you may take a slight hit on small context performance depending on backend, you will almost
+                always want to use
+                <a
+                  href="https://towardsdatascience.com/understanding-flash-attention-writing-the-algorithm-from-scratch-in-triton-5609f0b143ea/"
+                  target="_blank"
+                  rel="noopener"
+                  >Flash Attention</a
+                >
+                for long context and real world usage, so it's best to just test with this on unless you are sure you won't be using longer
+                context.
+              </li>
+              <li>
+                <code>-b</code>, <code>-ub</code> - These specify logical and physical max batch size and default to 2048 and 512
+                respectively. You can increase these to improve longer context performance, however <code>-b</code> raises reserved memory
+                and <code>-ub</code> raises peak memory usage. You can get some gains in performance (diminishing returns) increasing these,
+                but you also risk OOM errors
+              </li>
+              <li>
+                <code>-r</code> - if you are doing tests on ultra-long context, these can sometimes take an hour or even longer to run a
+                single pass - for these tests setting repetition to 1 is advised: <code>-r 1</code> - if you want something more
+                statistically valid or test under load, you could of course go the other way and set <code>-r 10</code> or higher
+              </li>
+              <li>
+                <code>-p</code>, <code>-n</code>, <code>-pg</code>, <code>-d</code> - These control the various tests.
+                <code>-p</code> (default 512) measures <code>pp</code> &quot;prompt processing&quot; speed or prefill - this is how many
+                tokens are in your prior context/conversation and is typically compute limited. <code>-n</code> (default 128) tests your
+                <code>tg</code> token generation - this is the speed at which new tokens generate after you've processed your prompt and is
+                typically memory limited. <code>-pg</code> let's you measure a pp+tg together, and <code>-d</code> lets you specify a
+                &quot;depth&quot; or number of tokens before you test - eg, if you specify <code>-p 0 -n 128 -d 10000</code> it will measure
+                the speed that tokens generate after there is 10000 tokens of context - the longer the context length, the slower this will
+                be.
+              </li>
+            </ul>
+            <h2 id="performance-testing" tabindex="-1">Performance Testing</h2>
+            <p>
+              Some community members have run llama-bench in a way that can give you a good idea of performance across various model
+              sizes/architectures
+            </p>
+            <ul>
+              <li>
+                <a href="https://github.com/lhl/strix-halo-testing/tree/main/llm-bench" target="_blank" rel="noopener"
+                  >https://github.com/lhl/strix-halo-testing/tree/main/llm-bench</a
+                >
+                - context sweeps of various models and backends
+              </li>
+              <li>
+                <a href="https://kyuz0.github.io/amd-strix-halo-toolboxes/" target="_blank" rel="noopener"
+                  >https://kyuz0.github.io/amd-strix-halo-toolboxes/</a
+                >
+                - interactive pp512/128 chart of various models and backends
+              </li>
+              <li>
+                <a
+                  href="https://community.frame.work/t/will-the-ai-max-395-128gb-be-able-to-run-gpt-oss-120b/73280/26"
+                  target="_blank"
+                  rel="noopener"
+                  >https://community.frame.work/t/will-the-ai-max-395-128gb-be-able-to-run-gpt-oss-120b/73280/26</a
+                >
+                - comparing performance differences of different quants of gpt-oss
+              </li>
+            </ul>
+            <h2 id="long-context-length-testing" tabindex="-1">Long Context Length Testing</h2>
+            <p>
+              Most tests use the default llama-bench numbers (pp512/tg128) and these are good for broad comparisons, however as you can see
+              <a href="https://github.com/lhl/strix-halo-testing/tree/main/llm-bench/llama-2-7b.Q4_0" target="_blank" rel="noopener"
+                >even from 1-4096 sweeps</a
+              >, different backends and settings have different performance characteristics as context extends.
+            </p>
+            <p>
+              For example, running tests on the AMDVLK vs RADV Vulkan backends, while RADV is about 4% on <code>tg128</code>, it's 16%
+              slower for <code>pp512</code>. One some models the <code>pp512</code> performance gap is even bigger if you're
+              <a href="https://kyuz0.github.io/amd-strix-halo-toolboxes/" target="_blank" rel="noopener"
+                >looking purely at pp512/tg128 numbers</a
+              >. This test takes ~5s to run and varies wildly for different model. For example, for Qwen 3 30B-A3B UD-Q4_K_XL RADV is
+              actually a bit <em>faster</em> than AMDVLK:
+            </p>
+            <pre><code>❯ build/bin/llama-bench -fa 1 -r 1 --mmap 0 -m /models/gguf/Qwen3-30B-A3B-UD-Q4_K_XL.gguf 
+❯ AMD_VULKAN_ICD=RADV build/bin/llama-bench -fa 1 -r 1 --mmap 0 -m /models/gguf/Qwen3-30B-A3B-UD-Q4_K_XL.gguf
+</code></pre>
+            <table>
+              <thead>
+                <tr>
+                  <th>Backend</th>
+                  <th>pp512 (t/s)</th>
+                  <th>tg128 (t/s)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Vulkan AMDVLK</td>
+                  <td>741.60</td>
+                  <td>81.79</td>
+                </tr>
+                <tr>
+                  <td>Vulkan RADV</td>
+                  <td>755.14</td>
+                  <td>85.11</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              However, running these tests at the end of its 128K context depth gives you an decidedly different picture. For long context,
+              the RADV driver in this case scales <strong>much better</strong>:
+            </p>
+            <pre><code>❯ build/bin/llama-bench -fa 1 -r 1 --mmap 0 -m /models/gguf/Qwen3-30B-A3B-UD-Q4_K_XL.gguf -d 130560
+❯ AMD_VULKAN_ICD=RADV build/bin/llama-bench -fa 1 -r 1 --mmap 0 -m /models/gguf/Qwen3-30B-A3B-UD-Q4_K_XL.gguf -d 130560
+</code></pre>
+            <table>
+              <thead>
+                <tr>
+                  <th>Backend</th>
+                  <th>pp512 @ d130560 (t/s)</th>
+                  <th>tg128 @ d130560 (t/s)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Vulkan AMDVLK</td>
+                  <td>10.75</td>
+                  <td>3.51</td>
+                </tr>
+                <tr>
+                  <td>Vulkan RADV</td>
+                  <td>17.24</td>
+                  <td>12.54</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              These runs took about ~2-3h to run on Strix Halo. You can do this with the ROCm backend as well (I recommend using the rocWMMA
+              compile, and testing with and without <code>ROCBLAS_USE_HIPBLASLT=1</code> to compare the rocBLAS vs hipBLASlt kernels, but I
+              leave that as a multi-hour exercise for the reader. This is simply illustrative for the differences you might see. (If you're
+              doing an overnight run, doing something like <code>-d 0,5000,10000,50000,100000</code> might give you a better idea of how
+              things slow down as context grows.
+            </p>
+            <p>
+              NOTE: <code>pp</code> or context processing is critically important if you are loading previous long conversations/large
+              context (agentic flows) or adding many tokens (grounding via search, tools, file attachments, etc), however in single-user
+              conversational usage, <code>llama-cli</code> has a <code>--prompt-cache-all</code> flag and <code>llama-server</code> allows
+              you to submit <code>cache_prompt=True</code> with your request to be able to use previously cached context similar to vLLM's
+              <a href="https://docs.vllm.ai/en/stable/features/automatic_prefix_caching.html" target="_blank" rel="noopener"
+                >automatic prefix caching</a
+              >
+              or SGLang's <a href="https://lmsys.org/blog/2024-01-17-sglang/" target="_blank" rel="noopener">radix caching</a>.
+            </p>
+            <h2 id="bonus-rocm-numbers" tabindex="-1">Bonus ROCm numbers</h2>
+            <p>Built w/ rocWMMA (<code>-DGGML_HIP_ROCWMMA_FATTN=ON</code>)</p>
+            <pre><code>❯ build/bin/llama-bench -fa 1 -r 1 --mmap 0 -m /models/gguf/Qwen3-30B-A3B-UD-Q4_K_XL.gguf
+❯ ROCBLAS_USE_HIPBLASLT=1 build/bin/llama-bench -fa 1 -r 1 --mmap 0 -m /models/gguf/Qwen3-30B-A3B-UD-Q4_K_XL.gguf
+</code></pre>
+            <table>
+              <thead>
+                <tr>
+                  <th>Backend</th>
+                  <th>pp512 (t/s)</th>
+                  <th>tg128 (t/s)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>ROCm</td>
+                  <td>650.59</td>
+                  <td>64.17</td>
+                </tr>
+                <tr>
+                  <td>ROCm hipBLASlt</td>
+                  <td>651.93</td>
+                  <td>63.95</td>
+                </tr>
+              </tbody>
+            </table>
+            <pre><code>❯ build/bin/llama-bench -fa 1 -r 1 --mmap 0 -m /models/gguf/Qwen3-30B-A3B-UD-Q4_K_XL.gguf -d 130560
+❯ ROCBLAS_USE_HIPBLASLT=1 build/bin/llama-bench -fa 1 -r 1 --mmap 0 -m /models/gguf/Qwen3-30B-A3B-UD-Q4_K_XL.gguf -d 130560
+</code></pre>
+            <table>
+              <thead>
+                <tr>
+                  <th>Backend</th>
+                  <th>pp512 @ d130560 (t/s)</th>
+                  <th>tg128 @ d130560 (t/s)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>ROCm</td>
+                  <td>40.58</td>
+                  <td>4.98</td>
+                </tr>
+                <tr>
+                  <td>ROCm hipBLASlt</td>
+                  <td>40.35</td>
+                  <td>4.97</td>
+                </tr>
+              </tbody>
+            </table>
+            <h2 id="bonus-tuned-rocm-numbers" tabindex="-1">Bonus Tuned ROCm numbers</h2>
+            <p>
+              These are generated with
+              <a href="https://github.com/lhl/llama.cpp/tree/rocm-wmma-tune" target="_blank" rel="noopener">lhl's rocm-wmma-tune</a>
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Backend</th>
+                  <th>ctx depth</th>
+                  <th>pp512 (t/s)</th>
+                  <th>tg128 (t/s)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>ROCm</td>
+                  <td>0</td>
+                  <td>659.07</td>
+                  <td>67.66</td>
+                </tr>
+                <tr>
+                  <td>ROCm hipBLASlt</td>
+                  <td>0</td>
+                  <td>649.48</td>
+                  <td>67.62</td>
+                </tr>
+                <tr>
+                  <td>ROCm</td>
+                  <td>130560</td>
+                  <td>51.12</td>
+                  <td>13.32</td>
+                </tr>
+                <tr>
+                  <td>ROCm hipBLASlt</td>
+                  <td>130560</td>
+                  <td>51.05</td>
+                  <td>13.33</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              These are the best long-context results of any of the tested backends. You can
+              <a
+                href="https://www.reddit.com/r/LocalLLaMA/comments/1ok7hd4/faster_llamacpp_rocm_performance_for_amd_rdna3/"
+                target="_blank"
+                rel="noopener"
+                >read more about this branch here</a
+              >.
+            </p>
+          </article>
+          <footer class="page-footer">
+            <span
+              >Generated from
+              <a href="https://raw.githubusercontent.com/kyuz0/strixhalo-homelab/HEAD/AI/llamacpp-performance.md"
+                >AI/llamacpp-performance.md</a
+              >
+            </span>
+            <span class="opacity-40">·</span>
+
+            <a href="https://github.com/kyuz0/strixhalo-homelab/blob/HEAD/AI/llamacpp-performance.md">View on GitHub</a>
+          </footer>
+        </div>
+      </main>
+
+      <!-- right: on-this-page (desktop only; mobile uses #toc-btn drawer) -->
+      <aside id="toc-nav" aria-label="On this page">
+        <div class="toc-header">On this page</div>
+        <nav id="toc" class="toc-list" aria-label="Table of contents">
+          <a href="#llama-bench-basics" class="toc-level-2">llama-bench Basics</a>
+          <a href="#performance-testing" class="toc-level-2">Performance Testing</a>
+          <a href="#long-context-length-testing" class="toc-level-2">Long Context Length Testing</a>
+          <a href="#bonus-rocm-numbers" class="toc-level-2">Bonus ROCm numbers</a>
+          <a href="#bonus-tuned-rocm-numbers" class="toc-level-2">Bonus Tuned ROCm numbers</a>
+        </nav>
+      </aside>
+    </div>
+
+    <!-- mobile tree drawer -->
+    <div id="mobile-tree" class="mobile-drawer" aria-hidden="true" data-active-key="AI/llamacpp-performance">
+      <div class="backdrop" data-close></div>
+      <div class="drawer">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem">
+          <span class="tree-section-header">
+            <img
+              class="sidebar-favicon"
+              src="https://raw.githubusercontent.com/kyuz0/strixhalo-homelab/HEAD/README/amd-favicon.png"
+              alt=""
+              aria-hidden="true" />
+            <span>Strix&nbsp;Halo&nbsp;Wiki</span>
+          </span>
+          <button
+            data-close
+            aria-label="Close"
+            style="background: none; border: 0; color: var(--wa-color-text-quiet); font-size: 1.25rem; cursor: pointer">
+            ✕
+          </button>
+        </div>
+        <wa-tree>
+          <wa-tree-item><a href="../../" data-path="README">Home</a></wa-tree-item>
+          <wa-tree-item expanded
+            ><a class="tree-section-header" href="../" data-path="AI" aria-current="page">AI</a>
+            <wa-tree-item slot="children" role="treeitem"
+              ><a href="../AI_Capabilities_Overview/" data-path="AI/AI_Capabilities_Overview">AI Capabilities Overview</a></wa-tree-item
+            >
+            <wa-tree-item slot="children" role="treeitem"><a href="../Clustering/" data-path="AI/Clustering">Clustering</a></wa-tree-item>
+            <wa-tree-item slot="children" role="treeitem"
+              ><a href="../Clustering_with_RDMA/" data-path="AI/Clustering_with_RDMA">Clustering with RDMA</a></wa-tree-item
+            >
+            <wa-tree-item slot="children" role="treeitem"
+              ><a href="../Fine-tuning-eval/" data-path="AI/Fine-tuning-eval">Fine-tuning-eval</a></wa-tree-item
+            >
+            <wa-tree-item selected slot="children" role="treeitem"
+              ><a href="./" data-path="AI/llamacpp-performance" aria-current="page">llamacpp-performance</a></wa-tree-item
+            >
+            <wa-tree-item slot="children" role="treeitem"
+              ><a href="../llamacpp-with-ROCm/" data-path="AI/llamacpp-with-ROCm">llamacpp-with-ROCm</a></wa-tree-item
+            >
+            <wa-tree-item slot="children" role="treeitem"><a href="../vLLM/" data-path="AI/vLLM">vLLM</a></wa-tree-item>
+          </wa-tree-item>
+          <wa-tree-item
+            ><a class="tree-section-header" href="../../Guides/" data-path="Guides">Guides</a>
+            <wa-tree-item slot="children" role="treeitem"
+              ><a class="tree-section-header" href="../../Guides/Sixunited_AXB35/" data-path="Guides/Sixunited_AXB35">Sixunited AXB35</a>
+              <wa-tree-item slot="children" role="treeitem"
+                ><a
+                  href="../../Guides/Sixunited_AXB35/Power_Mode_and_Fan_Control/"
+                  data-path="Guides/Sixunited_AXB35/Power_Mode_and_Fan_Control"
+                  >Power Mode and Fan Control</a
+                ></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a
+                  href="../../Guides/Sixunited_AXB35/Replacing_Thermal_Interfaces_On_GMKtec_EVO-X2/"
+                  data-path="Guides/Sixunited_AXB35/Replacing_Thermal_Interfaces_On_GMKtec_EVO-X2"
+                  >Replacing Thermal Interfaces On GMKtec EVO-X2</a
+                ></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a
+                  href="../../Guides/Sixunited_AXB35/Restoring_Corrupted_BIOS/"
+                  data-path="Guides/Sixunited_AXB35/Restoring_Corrupted_BIOS"
+                  >Restoring Corrupted BIOS</a
+                ></wa-tree-item
+              >
+            </wa-tree-item>
+            <wa-tree-item slot="children" role="treeitem"
+              ><a href="../../Guides/Buyer's_Guide/" data-path="Guides/Buyer's_Guide">Buyer's Guide</a></wa-tree-item
+            >
+            <wa-tree-item slot="children" role="treeitem"
+              ><a href="../../Guides/C-States/" data-path="Guides/C-States">C-States</a></wa-tree-item
+            >
+            <wa-tree-item slot="children" role="treeitem"
+              ><a href="../../Guides/External_GPU/" data-path="Guides/External_GPU">External GPU</a></wa-tree-item
+            >
+            <wa-tree-item slot="children" role="treeitem"
+              ><a href="../../Guides/Hardware_Monitoring/" data-path="Guides/Hardware_Monitoring">Hardware Monitoring</a></wa-tree-item
+            >
+            <wa-tree-item slot="children" role="treeitem"
+              ><a href="../../Guides/Kubernetes/" data-path="Guides/Kubernetes">Kubernetes</a></wa-tree-item
+            >
+            <wa-tree-item slot="children" role="treeitem"
+              ><a href="../../Guides/Power_Modes_and_Performance/" data-path="Guides/Power_Modes_and_Performance"
+                >Power Modes and Performance</a
+              ></wa-tree-item
+            >
+            <wa-tree-item slot="children" role="treeitem"
+              ><a href="../../Guides/VM_iGPU_Passthrough/" data-path="Guides/VM_iGPU_Passthrough">VM iGPU Passthrough</a></wa-tree-item
+            >
+          </wa-tree-item>
+          <wa-tree-item
+            ><a class="tree-section-header" href="../../Hardware/" data-path="Hardware">Hardware</a>
+            <wa-tree-item slot="children" role="treeitem"
+              ><a class="tree-section-header" href="../../Hardware/Boards/" data-path="Hardware/Boards">Boards</a>
+              <wa-tree-item slot="children" role="treeitem"
+                ><a class="tree-section-header" href="../../Hardware/Boards/Sixunited_AXB35/" data-path="Hardware/Boards/Sixunited_AXB35"
+                  >Sixunited AXB35</a
+                >
+                <wa-tree-item slot="children" role="treeitem"
+                  ><a href="../../Hardware/Boards/Sixunited_AXB35/Firmware/" data-path="Hardware/Boards/Sixunited_AXB35/Firmware"
+                    >Firmware</a
+                  ></wa-tree-item
+                >
+              </wa-tree-item>
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/Boards/Framework_Desktop_Mainboard/" data-path="Hardware/Boards/Framework_Desktop_Mainboard"
+                  >Framework Desktop Mainboard</a
+                ></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/Boards/MeeGoPad_100AM/" data-path="Hardware/Boards/MeeGoPad_100AM">MeeGoPad 100AM</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/Boards/Sixunited_AXB35/" data-path="Hardware/Boards/Sixunited_AXB35"
+                  >Sixunited AXB35</a
+                ></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/Boards/Sixunited_STHT1/" data-path="Hardware/Boards/Sixunited_STHT1"
+                  >Sixunited STHT1</a
+                ></wa-tree-item
+              >
+            </wa-tree-item>
+            <wa-tree-item slot="children" role="treeitem"
+              ><a class="tree-section-header" href="../../Hardware/PCs/" data-path="Hardware/PCs">PCs</a>
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/Abee_AI_Station/" data-path="Hardware/PCs/Abee_AI_Station">Abee AI Station</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/Aoostar_NEX395/" data-path="Hardware/PCs/Aoostar_NEX395">Aoostar NEX395</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/Beelink_GTR9_Pro/" data-path="Hardware/PCs/Beelink_GTR9_Pro">Beelink GTR9 Pro</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/Bosgame_M5/" data-path="Hardware/PCs/Bosgame_M5">Bosgame M5</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/Corsair_AI_Workstation_300/" data-path="Hardware/PCs/Corsair_AI_Workstation_300"
+                  >Corsair AI Workstation 300</a
+                ></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/FEVM_FA-EX9/" data-path="Hardware/PCs/FEVM_FA-EX9">FEVM FA-EX9</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/Framework_Desktop/" data-path="Hardware/PCs/Framework_Desktop"
+                  >Framework Desktop</a
+                ></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/GEEKOM A9 Mega/" data-path="Hardware/PCs/GEEKOM A9 Mega">GEEKOM A9 Mega</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/GMKtec_EVO-X2/" data-path="Hardware/PCs/GMKtec_EVO-X2">GMKtec EVO-X2</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/Hilbert_Super_Workstation/" data-path="Hardware/PCs/Hilbert_Super_Workstation"
+                  >Hilbert Super Workstation</a
+                ></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/HP_Z2_Mini_G1a/" data-path="Hardware/PCs/HP_Z2_Mini_G1a">HP Z2 Mini G1a</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/Minisforum_MS-S1_MAX/" data-path="Hardware/PCs/Minisforum_MS-S1_MAX"
+                  >Minisforum MS-S1 MAX</a
+                ></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/Minix_Elite_ER939-AI/" data-path="Hardware/PCs/Minix_Elite_ER939-AI"
+                  >Minix Elite ER939-AI</a
+                ></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/Morefine_H1/" data-path="Hardware/PCs/Morefine_H1">Morefine H1</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/MSI_AI_Edge/" data-path="Hardware/PCs/MSI_AI_Edge">MSI AI Edge</a></wa-tree-item
+              >
+              <wa-tree-item slot="children" role="treeitem"
+                ><a href="../../Hardware/PCs/NIMO_AI_MiniPC/" data-path="Hardware/PCs/NIMO_AI_MiniPC">NIMO AI MiniPC</a></wa-tree-item
+              >
+            </wa-tree-item>
+          </wa-tree-item></wa-tree
+        >
+      </div>
+    </div>
+    <!-- mobile top bar (fixed) -->
+    <header class="mobile-nav">
+      <button id="menu-btn" class="nav-btn" aria-label="Open pages menu">☰ Pages</button>
+      <span class="mobile-nav-spacer"></span>
+
+      <button id="toc-btn" class="nav-btn" aria-label="Open table of contents">☰ On this page</button>
+    </header>
+
+    <!-- mobile TOC drawer -->
+    <div id="mobile-toc" class="mobile-drawer" aria-hidden="true">
+      <div class="backdrop" data-close></div>
+      <div class="drawer">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem">
+          <span class="tree-section-header">On this page</span>
+          <button
+            data-close
+            aria-label="Close"
+            style="background: none; border: 0; color: var(--wa-color-text-quiet); font-size: 1.25rem; cursor: pointer">
+            ✕
+          </button>
+        </div>
+        <nav id="toc-mobile" class="toc-list" aria-label="Table of contents">
+          <a href="#llama-bench-basics" class="toc-level-2">llama-bench Basics</a>
+          <a href="#performance-testing" class="toc-level-2">Performance Testing</a>
+          <a href="#long-context-length-testing" class="toc-level-2">Long Context Length Testing</a>
+          <a href="#bonus-rocm-numbers" class="toc-level-2">Bonus ROCm numbers</a>
+          <a href="#bonus-tuned-rocm-numbers" class="toc-level-2">Bonus Tuned ROCm numbers</a>
+        </nav>
+      </div>
+    </div>
+
+    <script>
+      // site.js - inlined into every generated page (see template.html).
+      // Works with the Web Awesome (wa-tree/wa-tree-item) sidebar.
+
+      (() => {
+        "use strict";
+
+        // ---- mobile drawers (pages tree + TOC) ----
+        const menuBtn = document.getElementById("menu-btn");
+        const tocBtn = document.getElementById("toc-btn");
+        const mobileDrawers = Array.from(document.querySelectorAll(".mobile-drawer"));
+        function openDrawer(drawer) {
+          if (!drawer) return;
+          // Only one drawer open at a time.
+          mobileDrawers.forEach((d) => d.classList.remove("open"));
+          drawer.classList.add("open");
+        }
+        function closeDrawers() {
+          mobileDrawers.forEach((d) => d.classList.remove("open"));
+        }
+        if (menuBtn) {
+          menuBtn.addEventListener("click", () => openDrawer(document.getElementById("mobile-tree")));
+        }
+        if (tocBtn) {
+          tocBtn.addEventListener("click", () => openDrawer(document.getElementById("mobile-toc")));
+        }
+        // Close on backdrop click or when navigating (any link click).
+        mobileDrawers.forEach((drawer) => {
+          drawer.addEventListener("click", (e) => {
+            if (e.target.closest("[data-close]") || e.target.closest("a")) closeDrawers();
+          });
+        });
+
+        // ---- tree filter ----
+        // Works with Web Awesome wa-tree: hides wa-tree-item elements (via a class,
+        // since the shadow DOM may not reflect the hidden attribute), searches the
+        // *full path* of every row (pages AND directories), reopens branches that
+        // contain matches, and hides empty ones. Recomputes from scratch on every
+        // keystroke so removing characters correctly restores matches.
+        const search = document.getElementById("tree-search");
+        const tree = document.getElementById("tree");
+        const applyFilter = () => {
+          if (!search || !tree) return;
+          const q = search.value.trim().toLowerCase();
+          const links = Array.from(tree.querySelectorAll("wa-tree-item > a[data-path]"));
+          const items = Array.from(tree.querySelectorAll("wa-tree-item"));
+          const matches = new Set();
+          if (q) {
+            for (const a of links) {
+              const path = a.dataset.path.toLowerCase();
+              if (path.includes(q)) {
+                matches.add(a);
+                // Expand every ancestor branch of a match so it's visible.
+                let parent = a.closest("wa-tree-item").parentElement?.closest("wa-tree-item");
+                while (parent) {
+                  const pa = parent.querySelector(":scope > a[data-path]");
+                  if (pa) matches.add(pa);
+                  parent = parent.parentElement?.closest("wa-tree-item");
+                }
+              }
+            }
+          }
+          for (const item of items) {
+            const link = item.querySelector(":scope > a[data-path]");
+            if (link) {
+              const matched = q && matches.has(link);
+              item.classList.toggle("item-hidden", q && !matched);
+              item.classList.toggle("item-link-hidden", q && !matched);
+              if (matched && item.matches(":defined")) item.expanded = true;
+            } else {
+              // A container item without its own link (shouldn't occur, but guard)
+              item.classList.toggle("item-hidden", q && !links.some((l) => l.dataset.path && l.closest("wa-tree-item") === item));
+            }
+          }
+        };
+        if (search && tree) search.addEventListener("input", applyFilter);
+
+        // ---- tree initialization: deep-expand active branch + un-hide ----
+        // The <wa-tree> components upgrade asynchronously; while un-upgraded the
+        // raw markup is hidden (CSS :not(:defined)) to avoid a text flash. We keep
+        // it hidden (via [hidden]) until the components are upgraded AND have
+        // rendered, then do two things:
+        //
+        //  1. Force-expand the active page's ancestor branches, because WA's
+        //     tree-item resets a nested item's `expanded` during upgrade (its
+        //     parent context is always collapsed at that point), so the `expanded`
+        //     attribute on deep branches is lost.
+        //  2. Un-hide the tree, and re-apply the filter if the user typed before
+        //     the components finished loading.
+        //
+        // A timeout fallback reveals the raw tree even if Web Awesome never loads
+        // (e.g. CDN blocked), so the sidebar is never permanently empty.
+        const initTree = (root) => {
+          const waTree = root.querySelector("wa-tree");
+          if (!waTree) return;
+          waTree.hidden = true;
+
+          const activeKey = root.dataset.activeKey;
+          const parts = activeKey ? activeKey.split("/") : [];
+          const expand = new Set();
+          for (let i = 1; i < parts.length; i++) expand.add(parts.slice(0, i).join("/"));
+
+          const run = () => {
+            waTree.hidden = false;
+            if (!waTree.matches(":defined")) return;
+            const items = Array.from(waTree.querySelectorAll("wa-tree-item"));
+            Promise.all(items.map((it) => it.updateComplete || Promise.resolve())).then(() => {
+              for (const item of items) {
+                if (!item.matches(":defined")) continue;
+                const link = item.querySelector(":scope > a[data-path]");
+                if (link && expand.has(link.dataset.path)) item.expanded = true;
+              }
+              if (root === tree && search.value) applyFilter();
+            });
+          };
+
+          Promise.all([customElements.whenDefined("wa-tree"), customElements.whenDefined("wa-tree-item")])
+            .then(run)
+            .catch(() => {});
+          // Safety net: if the definitions never arrive, still reveal the tree.
+          setTimeout(run, 2000);
+        };
+        if (tree) initTree(tree);
+        const mobileTree = document.getElementById("mobile-tree");
+        if (mobileTree) initTree(mobileTree);
+
+        // ---- whole-row click navigation ----
+        // Clicking anywhere on a row (except the expand chevron) navigates to that
+        // row's page. The component only "selects" the item on row click, so we
+        // detect that and follow the anchor instead. Applied to both the desktop
+        // sidebar and the mobile drawer tree.
+        const wireRowClicks = (root) => {
+          const waTree = root.querySelector("wa-tree");
+          if (!waTree) return;
+          waTree.addEventListener("click", (e) => {
+            if (e.defaultPrevented || e.button !== 0) return; // let text/cmd/middle clicks be
+            if (e.target.closest("a")) return; // native link click - nothing to do
+            if (e.composedPath().some((el) => el?.classList?.contains("expand-button"))) return; // chevron
+            const item = e.target.closest("wa-tree-item");
+            const link = item && item.querySelector(":scope > a[data-path]");
+            if (link) link.click();
+          });
+        };
+        if (tree) wireRowClicks(tree);
+        if (mobileTree) wireRowClicks(mobileTree);
+
+        // ---- toc scrollspy ----
+        // Handles both the desktop rail (#toc) and the mobile TOC drawer
+        // (#toc-mobile); they share the same hrefs so one observer drives both.
+        const content = document.getElementById("content");
+        const tocRoots = [document.getElementById("toc"), document.getElementById("toc-mobile")].filter(Boolean);
+        if (tocRoots.length && content && "IntersectionObserver" in window) {
+          const links = tocRoots.flatMap((root) => Array.from(root.querySelectorAll("a[href^='#']")));
+          const map = new Map();
+          for (const a of links) {
+            const id = a.getAttribute("href").slice(1);
+            const el = document.getElementById(id);
+            if (!el) continue;
+            if (!map.has(el)) map.set(el, []);
+            map.get(el).push(a);
+          }
+          const setActive = (el) => {
+            // Clear active on both TOCs, then highlight all links for this heading.
+            links.forEach((a) => {
+              a.classList.remove("toc-active");
+              a.classList.add("toc-inactive");
+            });
+            for (const a of map.get(el) || []) {
+              a.classList.add("toc-active");
+              a.classList.remove("toc-inactive");
+            }
+          };
+          const io = new IntersectionObserver(
+            (entries) => {
+              for (const en of entries) {
+                if (en.isIntersecting) setActive(en.target);
+              }
+            },
+            { rootMargin: "-15% 0px -70% 0px", threshold: 0 },
+          );
+          map.forEach((linksForEl, el) => io.observe(el));
+        }
+      })();
+    </script>
+  </body>
+</html>

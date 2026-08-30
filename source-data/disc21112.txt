@@ -1,0 +1,2487 @@
+TITLE: Optimize my llama.cpp
+CREATED: 2026-03-28T09:35:38Z
+---BODY---
+## Overview
+
+Are you using `llama.cpp` and wondering if you are getting the most out of your hardware?
+
+Post your parameters below and get some help from the community to improve the performance. Sometimes, adjusting a few parameters can make a big difference in terms of speed and/or quality.
+
+### Information needed:
+
+- Hardware spec: (machines, GPUs, CPU, RAM)
+- `llama-server` command that you are currently using
+- One specific model that you are targeting
+- Explain briefly your use case: how many users, client, agent harness, etc.
+- Have an objective way to evaluate your current performance (usually `llama-bench`, but could be something else depending on the use case)
+- Keep your posts short and focused
+- Post one thread per setup
+- Provide feedback if the recommended parameter changes have been helpful
+
+===COMMENT by wbste at 2026-03-28T15:58:17Z===
+I'm the sole user of these models (at most an embedding and llm model at the same time). Usually just chatting back and forth with basic tool calls via MCP and the llama-server webui or Pi for cli.
+
+**Request**: MoE models that are larger than VRAM (let's focus on `NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL`), I'm trying to squeeze more tg out of them. Some numbers from `llama-bench` using `llama-fit-params` prior to running to find optimal `-ot`. Below are average tg rate at gen128 from 0-16k depth
+
+- Unsloth's gpt-oss-120b-Q8_0: ~30 tok/s
+- **Unsloth's NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL: ~16 tok/s**
+
+I know file sizes and active parameters all impact the numbers and you can't expect apples to apples between gpt-oss model architecture and others; just want to make sure I'm not missing any dials to tweak. Thanks everyone for this amazing project!
+
+## Additional Questions
+
+- I notice `ggml-org` vision models sometimes have q8 and f16 mmproj files. Have you noticed any quality differences between those?
+- Anything I should tweak for embeddings (see below)?
+
+## System Setup
+
+RTX 3090 (24 GB VRAM) | 128 DDR5 6400 MT/s RAM | Intel Core Ultra 265k
+
+```
+llama-server --version
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 24575 MiB):
+  Device 0: NVIDIA GeForce RTX 3090, compute capability 8.6, VMM: yes, VRAM: 24575 MiB
+load_backend: loaded CUDA backend from C:\llama\ggml-cuda.dll
+load_backend: loaded RPC backend from C:\llama\ggml-rpc.dll
+load_backend: loaded CPU backend from C:\llama\ggml-cpu-alderlake.dll
+version: 8563 (1f5d15e66)
+built with Clang 19.1.5 for Windows x86_64
+```
+
+I use `llama-server` and the models preset:
+
+`--models-preset presets.ini --models-max 2 --sleep-idle-seconds 600 --host 0.0.0.0 --port 9292`
+
+Portions of my `presets.ini` below
+
+```
+[*]
+batch-size = 4096
+ctx-size = 32000
+jinja = true
+parallel = 2
+```
+
+For embedding models I add this at each model level
+
+```
+batch-size = 16384
+ctx-size = 32768
+embeddings = on
+parallel = 8
+ubatch-size = 2048
+```
+
+## Llama-Bench Command
+
+```
+llama-bench -m 'D:\AI\models\unsloth\NVIDIA-Nemotron-3-Super-120B-A12B-GGUF\NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL-00001-of-00003.gguf' -ngl 89 -ot 'blk\.21\.ffn_down.*=CPU;blk\.22\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.23\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.24\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.25\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.26\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.27\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.28\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.29\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.30\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.31\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.32\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.33\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.34\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.35\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.36\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.37\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.38\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.39\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.40\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.41\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.42\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.43\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.44\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.45\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.46\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.47\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.48\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.49\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.50\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.51\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.52\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.53\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.54\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.55\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.56\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.57\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.58\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.59\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.60\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.61\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.62\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.63\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.64\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.65\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.66\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.67\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.68\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.69\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.70\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.71\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.72\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.73\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.74\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.75\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.76\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.77\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.78\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.79\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.80\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.81\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.82\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.83\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.84\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.85\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.86\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.87\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.88\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU' -p 0 -n 128 -d 4096 -fa 1
+```
+
+
+--REPLY by am17an at 2026-03-28T16:16:11Z--
+I've been trying to optimize this use-case. There are somethings you can try: 
+
+1. Try playing around with `-t` (number of threads). Since your machine has [8 performance cores](https://www.intel.com/content/www/us/en/products/sku/241063/intel-core-ultra-7-processor-265k-30m-cache-up-to-5-50-ghz/specifications.html), it's important to use those 
+2. Since you have enough ram, try `--mmap 0` (this helps with prefill)
+3. I tried optimizing decode path in #20596, but results are mixed across hardware as of now. You can try and let us know
+
+BTW your `llama-bench`'s overrides can be simplified using `-ncmoe 999`  (no need add those manual overrides)
+
+===COMMENT by wbste at 2026-03-28T15:58:17Z===
+I'm the sole user of these models (at most an embedding and llm model at the same time). Usually just chatting back and forth with basic tool calls via MCP and the llama-server webui or Pi for cli.
+
+**Request**: MoE models that are larger than VRAM (let's focus on `NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL`), I'm trying to squeeze more tg out of them. Some numbers from `llama-bench` using `llama-fit-params` prior to running to find optimal `-ot`. Below are average tg rate at gen128 from 0-16k depth
+
+- Unsloth's gpt-oss-120b-Q8_0: ~30 tok/s
+- **Unsloth's NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL: ~16 tok/s**
+
+I know file sizes and active parameters all impact the numbers and you can't expect apples to apples between gpt-oss model architecture and others; just want to make sure I'm not missing any dials to tweak. Thanks everyone for this amazing project!
+
+## Additional Questions
+
+- I notice `ggml-org` vision models sometimes have q8 and f16 mmproj files. Have you noticed any quality differences between those?
+- Anything I should tweak for embeddings (see below)?
+
+## System Setup
+
+RTX 3090 (24 GB VRAM) | 128 DDR5 6400 MT/s RAM | Intel Core Ultra 265k
+
+```
+llama-server --version
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 24575 MiB):
+  Device 0: NVIDIA GeForce RTX 3090, compute capability 8.6, VMM: yes, VRAM: 24575 MiB
+load_backend: loaded CUDA backend from C:\llama\ggml-cuda.dll
+load_backend: loaded RPC backend from C:\llama\ggml-rpc.dll
+load_backend: loaded CPU backend from C:\llama\ggml-cpu-alderlake.dll
+version: 8563 (1f5d15e66)
+built with Clang 19.1.5 for Windows x86_64
+```
+
+I use `llama-server` and the models preset:
+
+`--models-preset presets.ini --models-max 2 --sleep-idle-seconds 600 --host 0.0.0.0 --port 9292`
+
+Portions of my `presets.ini` below
+
+```
+[*]
+batch-size = 4096
+ctx-size = 32000
+jinja = true
+parallel = 2
+```
+
+For embedding models I add this at each model level
+
+```
+batch-size = 16384
+ctx-size = 32768
+embeddings = on
+parallel = 8
+ubatch-size = 2048
+```
+
+## Llama-Bench Command
+
+```
+llama-bench -m 'D:\AI\models\unsloth\NVIDIA-Nemotron-3-Super-120B-A12B-GGUF\NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL-00001-of-00003.gguf' -ngl 89 -ot 'blk\.21\.ffn_down.*=CPU;blk\.22\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.23\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.24\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.25\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.26\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.27\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.28\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.29\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.30\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.31\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.32\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.33\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.34\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.35\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.36\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.37\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.38\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.39\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.40\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.41\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.42\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.43\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.44\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.45\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.46\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.47\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.48\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.49\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.50\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.51\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.52\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.53\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.54\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.55\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.56\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.57\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.58\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.59\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.60\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.61\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.62\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.63\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.64\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.65\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.66\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.67\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.68\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.69\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.70\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.71\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.72\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.73\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.74\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.75\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.76\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.77\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.78\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.79\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.80\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.81\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.82\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.83\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.84\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.85\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.86\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.87\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.88\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU' -p 0 -n 128 -d 4096 -fa 1
+```
+
+
+--REPLY by wbste at 2026-03-28T16:39:36Z--
+Thanks for the reply!
+
+- I've tried playing with P-cores only on my 265k with `--threads 8 --cpu-range 0,1,6-9,18,19`, but was a bit slower than just using them all. Will try again.
+- `-ncmoe 999` would keep all MoE layers on cpu, which means I don't fill up VRAM and makes this all slower.
+
+Updated tests (just depth of 4096)
+
+- `llama-bench.exe -m 'D:\AI\models\unsloth\NVIDIA-Nemotron-3-Super-120B-A12B-GGUF\NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL-00001-of-00003.gguf' -ngl 89 -ncmoe 999 -p 0 -n 128 -d 4096 -fa 1`: 12.72 tok/s
+- `llama-bench.exe -m 'D:\AI\models\unsloth\NVIDIA-Nemotron-3-Super-120B-A12B-GGUF\NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL-00001-of-00003.gguf' -ncmoe 999 -p 0 -n 128 -d 4096 -fa 1`: 12.78 tok/s
+- my original command +  `--threads 8 -C 0xC03C3 --cpu-strict 1`: 12.23 tok/s
+- my original command: 16.6 tok/s
+- my original command + `--mmap 0`: 16.8 tok/s (I know you said for pp, was just curious on tg impact)
+
+===COMMENT by wbste at 2026-03-28T15:58:17Z===
+I'm the sole user of these models (at most an embedding and llm model at the same time). Usually just chatting back and forth with basic tool calls via MCP and the llama-server webui or Pi for cli.
+
+**Request**: MoE models that are larger than VRAM (let's focus on `NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL`), I'm trying to squeeze more tg out of them. Some numbers from `llama-bench` using `llama-fit-params` prior to running to find optimal `-ot`. Below are average tg rate at gen128 from 0-16k depth
+
+- Unsloth's gpt-oss-120b-Q8_0: ~30 tok/s
+- **Unsloth's NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL: ~16 tok/s**
+
+I know file sizes and active parameters all impact the numbers and you can't expect apples to apples between gpt-oss model architecture and others; just want to make sure I'm not missing any dials to tweak. Thanks everyone for this amazing project!
+
+## Additional Questions
+
+- I notice `ggml-org` vision models sometimes have q8 and f16 mmproj files. Have you noticed any quality differences between those?
+- Anything I should tweak for embeddings (see below)?
+
+## System Setup
+
+RTX 3090 (24 GB VRAM) | 128 DDR5 6400 MT/s RAM | Intel Core Ultra 265k
+
+```
+llama-server --version
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 24575 MiB):
+  Device 0: NVIDIA GeForce RTX 3090, compute capability 8.6, VMM: yes, VRAM: 24575 MiB
+load_backend: loaded CUDA backend from C:\llama\ggml-cuda.dll
+load_backend: loaded RPC backend from C:\llama\ggml-rpc.dll
+load_backend: loaded CPU backend from C:\llama\ggml-cpu-alderlake.dll
+version: 8563 (1f5d15e66)
+built with Clang 19.1.5 for Windows x86_64
+```
+
+I use `llama-server` and the models preset:
+
+`--models-preset presets.ini --models-max 2 --sleep-idle-seconds 600 --host 0.0.0.0 --port 9292`
+
+Portions of my `presets.ini` below
+
+```
+[*]
+batch-size = 4096
+ctx-size = 32000
+jinja = true
+parallel = 2
+```
+
+For embedding models I add this at each model level
+
+```
+batch-size = 16384
+ctx-size = 32768
+embeddings = on
+parallel = 8
+ubatch-size = 2048
+```
+
+## Llama-Bench Command
+
+```
+llama-bench -m 'D:\AI\models\unsloth\NVIDIA-Nemotron-3-Super-120B-A12B-GGUF\NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL-00001-of-00003.gguf' -ngl 89 -ot 'blk\.21\.ffn_down.*=CPU;blk\.22\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.23\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.24\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.25\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.26\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.27\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.28\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.29\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.30\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.31\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.32\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.33\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.34\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.35\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.36\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.37\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.38\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.39\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.40\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.41\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.42\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.43\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.44\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.45\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.46\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.47\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.48\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.49\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.50\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.51\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.52\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.53\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.54\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.55\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.56\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.57\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.58\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.59\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.60\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.61\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.62\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.63\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.64\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.65\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.66\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.67\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.68\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.69\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.70\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.71\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.72\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.73\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.74\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.75\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.76\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.77\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.78\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.79\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.80\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.81\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.82\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.83\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.84\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.85\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.86\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.87\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.88\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU' -p 0 -n 128 -d 4096 -fa 1
+```
+
+
+--REPLY by karambaso at 2026-03-28T18:18:16Z--
+>     * I've tried playing with P-cores only on my 265k with `--threads 8 --cpu-range 0,1,6-9,18,19`, but was a bit slower than just using them all. Will try again.
+
+I recommend to use all cores, in my test on the same cpu 96 threads was the best for prompt processing, when 24 threads was the best for token generation.
+
+===COMMENT by wbste at 2026-03-28T15:58:17Z===
+I'm the sole user of these models (at most an embedding and llm model at the same time). Usually just chatting back and forth with basic tool calls via MCP and the llama-server webui or Pi for cli.
+
+**Request**: MoE models that are larger than VRAM (let's focus on `NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL`), I'm trying to squeeze more tg out of them. Some numbers from `llama-bench` using `llama-fit-params` prior to running to find optimal `-ot`. Below are average tg rate at gen128 from 0-16k depth
+
+- Unsloth's gpt-oss-120b-Q8_0: ~30 tok/s
+- **Unsloth's NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL: ~16 tok/s**
+
+I know file sizes and active parameters all impact the numbers and you can't expect apples to apples between gpt-oss model architecture and others; just want to make sure I'm not missing any dials to tweak. Thanks everyone for this amazing project!
+
+## Additional Questions
+
+- I notice `ggml-org` vision models sometimes have q8 and f16 mmproj files. Have you noticed any quality differences between those?
+- Anything I should tweak for embeddings (see below)?
+
+## System Setup
+
+RTX 3090 (24 GB VRAM) | 128 DDR5 6400 MT/s RAM | Intel Core Ultra 265k
+
+```
+llama-server --version
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 24575 MiB):
+  Device 0: NVIDIA GeForce RTX 3090, compute capability 8.6, VMM: yes, VRAM: 24575 MiB
+load_backend: loaded CUDA backend from C:\llama\ggml-cuda.dll
+load_backend: loaded RPC backend from C:\llama\ggml-rpc.dll
+load_backend: loaded CPU backend from C:\llama\ggml-cpu-alderlake.dll
+version: 8563 (1f5d15e66)
+built with Clang 19.1.5 for Windows x86_64
+```
+
+I use `llama-server` and the models preset:
+
+`--models-preset presets.ini --models-max 2 --sleep-idle-seconds 600 --host 0.0.0.0 --port 9292`
+
+Portions of my `presets.ini` below
+
+```
+[*]
+batch-size = 4096
+ctx-size = 32000
+jinja = true
+parallel = 2
+```
+
+For embedding models I add this at each model level
+
+```
+batch-size = 16384
+ctx-size = 32768
+embeddings = on
+parallel = 8
+ubatch-size = 2048
+```
+
+## Llama-Bench Command
+
+```
+llama-bench -m 'D:\AI\models\unsloth\NVIDIA-Nemotron-3-Super-120B-A12B-GGUF\NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL-00001-of-00003.gguf' -ngl 89 -ot 'blk\.21\.ffn_down.*=CPU;blk\.22\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.23\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.24\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.25\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.26\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.27\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.28\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.29\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.30\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.31\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.32\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.33\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.34\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.35\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.36\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.37\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.38\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.39\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.40\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.41\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.42\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.43\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.44\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.45\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.46\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.47\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.48\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.49\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.50\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.51\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.52\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.53\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.54\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.55\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.56\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.57\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.58\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.59\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.60\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.61\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.62\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.63\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.64\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.65\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.66\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.67\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.68\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.69\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.70\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.71\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.72\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.73\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.74\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.75\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.76\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.77\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.78\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.79\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.80\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.81\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.82\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.83\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.84\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.85\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.86\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.87\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.88\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU' -p 0 -n 128 -d 4096 -fa 1
+```
+
+
+--REPLY by ggerganov at 2026-03-29T12:44:22Z--
+> I notice ggml-org vision models sometimes have q8 and f16 mmproj files. Have you noticed any quality differences between those?
+
+I haven't done extensive tests yet. My guess would be that quality-wise there should be no measurable difference between the two (q8_0 vs f16). The reason to upload different mmproj types is simply that we are not very systematic when uploading the models to `ggml-org` - something to improve.
+
+> Anything I should tweak for embeddings (see below)?
+
+I think your current config is solid. With `ubatch-size = 2048`, it means that you are computing embeddings with maximum length of 2048 tokens per sequence. Adding `batch-size = 16384` + `parallel = 8` is correct to ensure that you will be processing them in parallel within one logical batch.
+
+The most common mistake with embeddings in `llama.cpp` is to forget to add the dense modules when converting the Python model to GGUF. This is the `--sentence-transformers-dense-modules` flag of `convert_hf_to_gguf.py`. More info at: https://github.com/ggml-org/llama.cpp/pull/16367
+
+===COMMENT by wbste at 2026-03-28T15:58:17Z===
+I'm the sole user of these models (at most an embedding and llm model at the same time). Usually just chatting back and forth with basic tool calls via MCP and the llama-server webui or Pi for cli.
+
+**Request**: MoE models that are larger than VRAM (let's focus on `NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL`), I'm trying to squeeze more tg out of them. Some numbers from `llama-bench` using `llama-fit-params` prior to running to find optimal `-ot`. Below are average tg rate at gen128 from 0-16k depth
+
+- Unsloth's gpt-oss-120b-Q8_0: ~30 tok/s
+- **Unsloth's NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL: ~16 tok/s**
+
+I know file sizes and active parameters all impact the numbers and you can't expect apples to apples between gpt-oss model architecture and others; just want to make sure I'm not missing any dials to tweak. Thanks everyone for this amazing project!
+
+## Additional Questions
+
+- I notice `ggml-org` vision models sometimes have q8 and f16 mmproj files. Have you noticed any quality differences between those?
+- Anything I should tweak for embeddings (see below)?
+
+## System Setup
+
+RTX 3090 (24 GB VRAM) | 128 DDR5 6400 MT/s RAM | Intel Core Ultra 265k
+
+```
+llama-server --version
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 24575 MiB):
+  Device 0: NVIDIA GeForce RTX 3090, compute capability 8.6, VMM: yes, VRAM: 24575 MiB
+load_backend: loaded CUDA backend from C:\llama\ggml-cuda.dll
+load_backend: loaded RPC backend from C:\llama\ggml-rpc.dll
+load_backend: loaded CPU backend from C:\llama\ggml-cpu-alderlake.dll
+version: 8563 (1f5d15e66)
+built with Clang 19.1.5 for Windows x86_64
+```
+
+I use `llama-server` and the models preset:
+
+`--models-preset presets.ini --models-max 2 --sleep-idle-seconds 600 --host 0.0.0.0 --port 9292`
+
+Portions of my `presets.ini` below
+
+```
+[*]
+batch-size = 4096
+ctx-size = 32000
+jinja = true
+parallel = 2
+```
+
+For embedding models I add this at each model level
+
+```
+batch-size = 16384
+ctx-size = 32768
+embeddings = on
+parallel = 8
+ubatch-size = 2048
+```
+
+## Llama-Bench Command
+
+```
+llama-bench -m 'D:\AI\models\unsloth\NVIDIA-Nemotron-3-Super-120B-A12B-GGUF\NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL-00001-of-00003.gguf' -ngl 89 -ot 'blk\.21\.ffn_down.*=CPU;blk\.22\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.23\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.24\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.25\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.26\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.27\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.28\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.29\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.30\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.31\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.32\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.33\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.34\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.35\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.36\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.37\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.38\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.39\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.40\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.41\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.42\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.43\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.44\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.45\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.46\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.47\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.48\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.49\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.50\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.51\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.52\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.53\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.54\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.55\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.56\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.57\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.58\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.59\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.60\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.61\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.62\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.63\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.64\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.65\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.66\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.67\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.68\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.69\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.70\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.71\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.72\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.73\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.74\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.75\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.76\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.77\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.78\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.79\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.80\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.81\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.82\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.83\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.84\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.85\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.86\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.87\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.88\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU' -p 0 -n 128 -d 4096 -fa 1
+```
+
+
+--REPLY by vishalbelsare at 2026-05-09T01:17:07Z--
+Is there any documentation which gives some understanding of how batch size, ubatch size, ctx size, parallel interact in the context of embedding and reranking models?
+
+===COMMENT by wbste at 2026-03-28T15:58:17Z===
+I'm the sole user of these models (at most an embedding and llm model at the same time). Usually just chatting back and forth with basic tool calls via MCP and the llama-server webui or Pi for cli.
+
+**Request**: MoE models that are larger than VRAM (let's focus on `NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL`), I'm trying to squeeze more tg out of them. Some numbers from `llama-bench` using `llama-fit-params` prior to running to find optimal `-ot`. Below are average tg rate at gen128 from 0-16k depth
+
+- Unsloth's gpt-oss-120b-Q8_0: ~30 tok/s
+- **Unsloth's NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL: ~16 tok/s**
+
+I know file sizes and active parameters all impact the numbers and you can't expect apples to apples between gpt-oss model architecture and others; just want to make sure I'm not missing any dials to tweak. Thanks everyone for this amazing project!
+
+## Additional Questions
+
+- I notice `ggml-org` vision models sometimes have q8 and f16 mmproj files. Have you noticed any quality differences between those?
+- Anything I should tweak for embeddings (see below)?
+
+## System Setup
+
+RTX 3090 (24 GB VRAM) | 128 DDR5 6400 MT/s RAM | Intel Core Ultra 265k
+
+```
+llama-server --version
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 24575 MiB):
+  Device 0: NVIDIA GeForce RTX 3090, compute capability 8.6, VMM: yes, VRAM: 24575 MiB
+load_backend: loaded CUDA backend from C:\llama\ggml-cuda.dll
+load_backend: loaded RPC backend from C:\llama\ggml-rpc.dll
+load_backend: loaded CPU backend from C:\llama\ggml-cpu-alderlake.dll
+version: 8563 (1f5d15e66)
+built with Clang 19.1.5 for Windows x86_64
+```
+
+I use `llama-server` and the models preset:
+
+`--models-preset presets.ini --models-max 2 --sleep-idle-seconds 600 --host 0.0.0.0 --port 9292`
+
+Portions of my `presets.ini` below
+
+```
+[*]
+batch-size = 4096
+ctx-size = 32000
+jinja = true
+parallel = 2
+```
+
+For embedding models I add this at each model level
+
+```
+batch-size = 16384
+ctx-size = 32768
+embeddings = on
+parallel = 8
+ubatch-size = 2048
+```
+
+## Llama-Bench Command
+
+```
+llama-bench -m 'D:\AI\models\unsloth\NVIDIA-Nemotron-3-Super-120B-A12B-GGUF\NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q3_K_XL-00001-of-00003.gguf' -ngl 89 -ot 'blk\.21\.ffn_down.*=CPU;blk\.22\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.23\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.24\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.25\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.26\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.27\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.28\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.29\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.30\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.31\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.32\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.33\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.34\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.35\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.36\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.37\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.38\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.39\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.40\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.41\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.42\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.43\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.44\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.45\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.46\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.47\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.48\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.49\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.50\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.51\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.52\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.53\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.54\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.55\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.56\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.57\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.58\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.59\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.60\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.61\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.62\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.63\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.64\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.65\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.66\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.67\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.68\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.69\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.70\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.71\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.72\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.73\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.74\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.75\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.76\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.77\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.78\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.79\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.80\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.81\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.82\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.83\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.84\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.85\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.86\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.87\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU;blk\.88\.ffn_(up|down|gate_up|gate)_(ch|)exps=CPU' -p 0 -n 128 -d 4096 -fa 1
+```
+
+
+--REPLY by wbste at 2026-05-09T04:09:53Z--
+> Is there any documentation which gives some understanding of how batch size, ubatch size, ctx size, parallel interact in the context of embedding and reranking models?
+
+I basically did some iterative testing with those variables after reading the llama-server docs (and asking AI).
+
+TL;DR
+
+- Set parallel to 1 if it's just you talking to it.
+- Set ctx to whatever can fit in VRAM.
+- Deep batch the defaults for LLM inference.
+- For embeddings, I had to iterate based on my hardware to optimize throughput. The embedding model's supported length comes into play here too. If you don't want to rip through embeddings don't sweat it.
+- To directly answer your question, copy paste the https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md page into your favorite LLM and ask away, or use something like DeepWiki.com to ask (it's how I learned the basics).
+
+
+===COMMENT by Dampfinchen at 2026-03-29T13:21:45Z===
+Great thread!
+
+I'm running Qwen 35B A3B on my RTX 2060 laptop (32GB RAM, 6 GB VRAM, i7 9750H, Windows 11) and this is the first model I am able to run at ridiculous amounts of context at great speeds. 
+
+`./llama-server -m "Qwen 3.5\Qwen_Qwen3.5-35B-A3B-Q4_K_M.gguf" -c 102144 -fa 1 --host 0.0.0.0 --port 5001 -ub 2048 --jinja -ngl 99 --n-cpu-moe 99 -ctv q8_0 -ctk q8_0 --temp 1 --top-p 0.95 --top-k 20 --min-p 0.0 --presence-penalty 1.5 --repeat-penalty 1.0 --mmproj "mmproj-Qwen3.5-35B-A3B-Q8_0.gguf" --no-mmproj-offload`
+
+This is the best configuration I have come up with. With that, the experts are running on the CPU while the other layers run on the GPU. ubatch 2048 gives a huge speedup to prompt processing which is sorely needed.
+
+This way I'm getting around 350-400 token/s prefill on 102K context and a text generation of around 15 token/s. So I'm very pleased how well it runs.
+
+So pure text generation is great.
+
+However, as you have noticed, I have offloaded the mmproj entirely on the CPU. Why? Because it needs around 600 MB VRAM and that would greatly reduce the effective context I am able to run. On the CPU it can be very slow, it takes up to 300 seconds on decently sized images like browser snapshots.
+
+I wonder if there is any way to either make the mmproj more efficient on the CPU or switch layers from GPU to RAM to free up VRAM for the vision encoder just before the vision processing automatically or with a command and then load them back on the GPU after the vision processing has been completed.
+
+
+--REPLY by ggerganov at 2026-04-03T18:18:24Z--
+I think you have the right setup to fit your hardware. Can't recommend any changes to the parameters.
+
+Hot swapping the vision encoder is not possible and probably not be easy to add support for.
+
+===COMMENT by eelgaev at 2026-04-03T23:09:25Z===
+I might be using one of the more exotic setups :) 
+It's an IBM AC922 POWER9 cpu with 4 NVLink'ed Tesla V100 16GB (CPU<->GPU BW is 100-150GB/s)
+
+But speeds aren't really that good despite the connectivity.
+- Kimi-K2 Thinking 1T (Q1) - 5-6 tk/s
+- NVIDIA Nemotron 49B (Q8) - 12-13 tk/s
+- NVIDIA Nemotron-Super 120B (Q8) - 20tk/s
+
+I typically execute like this:
+```
+GGML_CUDA_ENABLE_UNIFIED_MEMORY=1 ./llama-server --host 0.0.0.0 --port 8081 -m Llama-3_3-Nemotron-Super-49B-v1-UD-Q8_K_XL-00001-of-00002.gguf \
+-ngl 99 --keep -1 --ctx-size 40000 --flash-attn on --numa distribute --parallel 1 --no-context-shift \
+--repeat-penalty 1.1 --presence-penalty 0.3 --frequency-penalty 0.5 --top-k 20 --top-p 0.9 \
+--mirostat 2 --mirostat-lr 0.1 --mirostat-ent 5 --dry-sequence-breaker none \
+-ts 8,8,12,12 --jinja --no-mmap --api-key <redacted> --poll 0 \
+-t 8 -tb 32 --kv-unified --alias model
+```
+
+--REPLY by wbste at 2026-05-09T04:17:23Z--
+Yeah the memory BW is the limiter AFAIK. You're in DDR5 speed area which isn't great relative to a modern top end GPU.
+
+===COMMENT by gompa-hacs at 2026-04-14T08:44:28Z===
+i have an old crypto miner, its basically e-waste but it does run smaller models okeyish. 
+the problem is that it has a way underpowerd cpu and slow pcie so running multiple independent models on different gpu's the cpu and memory become an issue
+
+i'am building a garbage multi agent chat interface, it sort of works as long as you only trigger 1-2 model at the same time
+
+hw: 
+2 core Intel(R) Celeron(R) CPU 3865U @ 1.80GHz
+16gb ddr4
+all gpu's are pcie 1x gen1
+1x 3060 12gb (swapped one of the p106-90 out for this, i had it laying around)
+8x NVIDIA P106-090 6gb
+
+i currently run it like this :
+CUDA_VISIBLE_DEVICES=(change depending on the device) screen -d -m ./llama.cpp/build/bin/llama-server -m models/gemma-4-E2B-it-UD-Q4_K_XL.gguf  -ngl 999 -t 1 --no-mmap --port 8080 --host 0.0.0.0  --fit on  --jinja --no-warmup -cram 1024
+
+it can idle multiple models at the same time, and run active inference on 2 models without too much slowdown but as soon as you hit the third model everything slows down significantly.
+setting cram to 0 helps with the cpu memory load but forces prompt reprocessing
+
+it's running different 4b models in Q4, or whatever fits in a single gpu's memory
+
+i was wondering if there is a way to reduce cpu load to be-able to run multiple models concurrently 
+
+--REPLY by wbste at 2026-05-09T04:18:15Z--
+Do you really need multiple models at once? Drop paraellel to 1 and only keep 1 loaded at a time?
+
+===COMMENT by hrpnr at 2026-05-10T14:16:14Z===
+Windows 11, AMD Ryzen 5 2.9GHz, and DDR4 16GB RAM --> 7.8 t/s
+
+<img width="632" height="205" alt="image" src="https://github.com/user-attachments/assets/2ef6859e-70b7-4975-a712-50b560abc5a1" />
+
+cmake -B build `
+  -DCMAKE_BUILD_TYPE=Release `
+  -DGGML_NATIVE=ON `
+  -DGGML_LTO=ON `
+  -DGGML_FAST_MATH=ON `
+  -DGGML_OPENMP=ON `
+  -DBUILD_SHARED_LIBS=OFF `
+  -DLLAMA_BUILD_TESTS=OFF `
+  -DLLAMA_BUILD_EXAMPLES=OFF `
+  -DLLAMA_BUILD_SERVER=ON
+  
+  cmake --build build --config Release -j 4
+  
+  .\llama-server.exe `
+  -m D:\Z\LocalModels\gemma-4-E4B-it\gemma-4-E4B-it-Q4_K_M.gguf `
+  -t 4 `
+  -tb 4 `
+  --no-mmap `
+  -fa on `
+  -c 8000 `
+  -b 1024 `
+  -ub 1024 `
+  -np 4 `
+  --cache-type-k q4_0 `
+  --cache-type-v q4_0 `
+
+--REPLY by d-shehu at 2026-06-02T17:31:03Z--
+Did you need Q4 quant on KV cache to fit it in memory? 
+
+I was under the impression that anything below Q8 for KV significantly increases errors.
+
+===COMMENT by hrpnr at 2026-05-10T14:16:14Z===
+Windows 11, AMD Ryzen 5 2.9GHz, and DDR4 16GB RAM --> 7.8 t/s
+
+<img width="632" height="205" alt="image" src="https://github.com/user-attachments/assets/2ef6859e-70b7-4975-a712-50b560abc5a1" />
+
+cmake -B build `
+  -DCMAKE_BUILD_TYPE=Release `
+  -DGGML_NATIVE=ON `
+  -DGGML_LTO=ON `
+  -DGGML_FAST_MATH=ON `
+  -DGGML_OPENMP=ON `
+  -DBUILD_SHARED_LIBS=OFF `
+  -DLLAMA_BUILD_TESTS=OFF `
+  -DLLAMA_BUILD_EXAMPLES=OFF `
+  -DLLAMA_BUILD_SERVER=ON
+  
+  cmake --build build --config Release -j 4
+  
+  .\llama-server.exe `
+  -m D:\Z\LocalModels\gemma-4-E4B-it\gemma-4-E4B-it-Q4_K_M.gguf `
+  -t 4 `
+  -tb 4 `
+  --no-mmap `
+  -fa on `
+  -c 8000 `
+  -b 1024 `
+  -ub 1024 `
+  -np 4 `
+  --cache-type-k q4_0 `
+  --cache-type-v q4_0 `
+
+--REPLY by hrpnr at 2026-06-12T06:00:19Z--
+just arbitrarily chose Q4. the hardware can run with Q4 or F16. and I am yet to find relationship between cache-type and error levels.
+
+===COMMENT by hrpnr at 2026-05-10T14:16:14Z===
+Windows 11, AMD Ryzen 5 2.9GHz, and DDR4 16GB RAM --> 7.8 t/s
+
+<img width="632" height="205" alt="image" src="https://github.com/user-attachments/assets/2ef6859e-70b7-4975-a712-50b560abc5a1" />
+
+cmake -B build `
+  -DCMAKE_BUILD_TYPE=Release `
+  -DGGML_NATIVE=ON `
+  -DGGML_LTO=ON `
+  -DGGML_FAST_MATH=ON `
+  -DGGML_OPENMP=ON `
+  -DBUILD_SHARED_LIBS=OFF `
+  -DLLAMA_BUILD_TESTS=OFF `
+  -DLLAMA_BUILD_EXAMPLES=OFF `
+  -DLLAMA_BUILD_SERVER=ON
+  
+  cmake --build build --config Release -j 4
+  
+  .\llama-server.exe `
+  -m D:\Z\LocalModels\gemma-4-E4B-it\gemma-4-E4B-it-Q4_K_M.gguf `
+  -t 4 `
+  -tb 4 `
+  --no-mmap `
+  -fa on `
+  -c 8000 `
+  -b 1024 `
+  -ub 1024 `
+  -np 4 `
+  --cache-type-k q4_0 `
+  --cache-type-v q4_0 `
+
+--REPLY by Kangaroux at 2026-06-17T00:41:37Z--
+This discussion has some details https://github.com/ggml-org/llama.cpp/discussions/23470.
+
+If you're just using it for chatting then 4-bit is fine. For tool use and larger contexts, use `-ctk q8_0 -ctv q5_0`. Made a very noticeable difference for me, particularly with regards to how "distractable" the model is. At q4 it feels like the model gets tunnel vision and has trouble with recall.
+
+===COMMENT by RWayne93 at 2026-05-11T18:11:36Z===
+Hey guys. I have the pleasure of being able to use an on prem GH200 server my company purchased a while back and wanted to optimize inference further on this particular platform. One things I have seen across a lot of llm inference engines is that they don't fully utilize these NVIDIA grace platforms well. Specifically the NVIDIA NVLink-C2C - Chip Interconnect. 
+
+So one big win I think for these type of systems is for MOE models by  placing experts in a CUDA-owned mapped host buffer that lives inside the grace memory. 
+
+I'm a little out of my area on expertise on this though so with GPT 5.5 i was able to get something working (i think) that tries to take advantage of this. the diff is here. https://github.com/ggml-org/llama.cpp/commit/56900d080fc3a2eb578b8694c26891cb30e10b30 
+
+To test i picked Qwen3.5 A122B FP8 which is larger than the 94gb of vram on my GH200 system and with the normal --moe-cpu offloading we get these results: 
+
+```bash
+build-c2c/bin/llama-server \
+  -m /bartowski--Qwen_Qwen3.5-122B-A10B-GGUF
+  -ngl all \
+  --cpu-moe \
+  --no-mmap \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --ctx-size  12288 \
+  --reasoning off
+  
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 97280 MiB):
+  Device 0: NVIDIA GH200 480GB, compute capability 9.0, VMM: yes, VRAM: 97280 MiB
+main: n_parallel is set to auto, using n_parallel = 4 and kv_unified = true
+build_info: b9108-928b486b0
+system_info: n_threads = 72 (n_threads_batch = 72) / 72 | CUDA : ARCHS = 900 | USE_GRAPHS = 1 | PEER_MAX_BATCH_SIZE = 128 | CPU : NEON = 1 | ARM_FMA = 1 | FP16_VA = 1 | MATMUL_INT8 = 1 | SVE = 1 | DOTPROD = 1 | SVE_CNT = 16 | OPENMP = 1 | REPACK = 1 | 
+Running without SSL
+init: using 71 threads for HTTP server
+load_tensors: loading model tensors, this can take a while... (mmap = false, direct_io = false)
+load_tensors: offloading output layer to GPU
+load_tensors: offloading 47 repeating layers to GPU
+load_tensors: offloaded 49/49 layers to GPU
+load_tensors:        CUDA0 model buffer size =  5607.73 MiB
+load_tensors:    CUDA_Host model buffer size = 118276.97 MiB
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot print_timing: id  3 | task 0 | 
+prompt eval time =    2075.52 ms /    18 tokens (  115.31 ms per token,     8.67 tokens per second)
+       eval time =   18013.80 ms /   128 tokens (  140.73 ms per token,     7.11 tokens per second)
+      total time =   20089.32 ms /   146 tokens
+```
+
+and with our c2c-moe flag we get: 
+
+```bash
+build-c2c/bin/llama-server \
+  -m /bartowski--Qwen_Qwen3.5-122B-A10B-GGUF
+  -ngl all \
+  --c2c-moe \
+  --no-mmap \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --ctx-size  12288 \
+  --reasoning off
+
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 97280 MiB):
+  Device 0: NVIDIA GH200 480GB, compute capability 9.0, VMM: yes, VRAM: 97280 MiB
+main: n_parallel is set to auto, using n_parallel = 4 and kv_unified = true
+build_info: b9108-928b486b0
+system_info: n_threads = 72 (n_threads_batch = 72) / 72 | CUDA : ARCHS = 900 | USE_GRAPHS = 1 | PEER_MAX_BATCH_SIZE = 128 | CPU : NEON = 1 | ARM_FMA = 1 | FP16_VA = 1 | MATMUL_INT8 = 1 | SVE = 1 | DOTPROD = 1 | SVE_CNT = 16 | OPENMP = 1 | REPACK = 1 | 
+Running without SSL
+init: using 71 threads for HTTP serve
+load_tensors: loading model tensors, this can take a while... (mmap = false, direct_io = false)
+load_tensors: offloading output layer to GPU
+load_tensors: offloading 47 repeating layers to GPU
+load_tensors: offloaded 49/49 layers to GPU
+load_tensors:        CUDA0 model buffer size =  5607.73 MiB
+load_tensors: CUDA0_C2C_Host model buffer size = 117504.00 MiB
+load_tensors:    CUDA_Host model buffer size =   772.97 MiB
+slot print_timing: id  3 | task 0 | 
+prompt eval time =     215.34 ms /    18 tokens (   11.96 ms per token,    83.59 tokens per second)
+       eval time =    2067.43 ms /   128 tokens (   16.15 ms per token,    61.91 tokens per second)
+      total time =    2282.77 ms /   146 tokens
+```
+
+I am posting this here because I am wondering if this could be improved further by somebody that actually knows the llamacpp code base better than me and GPT 5.5 as i would love to see optimizations for this particular hardware in the llama.cpp codebase.
+
+--REPLY by d-shehu at 2026-06-02T18:57:51Z--
+I'm using 2 RPC servers with 88GB of VRAM. The best I've gotten is around 60 t/s for token generation with Qwen 3.5 122b. But with a few tweaks I did increase it from 15 t/s originally.
+
+The main boosts on my mixed AMD + Nvidia system:
+
+ 1. Use MT prediction and model
+ 2. -ub 2048 -b 2048
+ 
+ 3. GGML_VK_ALLOW_GRAPHICS_QUEUE=1 
+        *RDNA specific
+   
+   Key Params:
+  ```
+  -ngl all                             
+   -sm layer                 
+   --fit off                 
+   -fa on                 
+   -ub 2048 -b 16384                 
+   --spec-type draft-mtp 
+   --spec-draft-n-max 6 
+   --spec-draft-ngl all 
+   --cache-type-k q8_0 
+   --cache-type-v q8_0                     
+   --spec-draft-type-k q8_0 
+   --spec-draft-type-v q8_0
+   --seed 3457                         
+    -t 16                         
+    --rpc <rpc server>:26001                         
+     -dev RPC0,RPC1,Vulkan0,Vulkan1                         
+     --tensor-split 22,0,30,30                         
+     --no-mmap                         
+     --no-warmup
+  ```
+  
+  This is the 1st time I've seen "--c2c-moe" flag ...
+
+===COMMENT by RWayne93 at 2026-05-11T18:11:36Z===
+Hey guys. I have the pleasure of being able to use an on prem GH200 server my company purchased a while back and wanted to optimize inference further on this particular platform. One things I have seen across a lot of llm inference engines is that they don't fully utilize these NVIDIA grace platforms well. Specifically the NVIDIA NVLink-C2C - Chip Interconnect. 
+
+So one big win I think for these type of systems is for MOE models by  placing experts in a CUDA-owned mapped host buffer that lives inside the grace memory. 
+
+I'm a little out of my area on expertise on this though so with GPT 5.5 i was able to get something working (i think) that tries to take advantage of this. the diff is here. https://github.com/ggml-org/llama.cpp/commit/56900d080fc3a2eb578b8694c26891cb30e10b30 
+
+To test i picked Qwen3.5 A122B FP8 which is larger than the 94gb of vram on my GH200 system and with the normal --moe-cpu offloading we get these results: 
+
+```bash
+build-c2c/bin/llama-server \
+  -m /bartowski--Qwen_Qwen3.5-122B-A10B-GGUF
+  -ngl all \
+  --cpu-moe \
+  --no-mmap \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --ctx-size  12288 \
+  --reasoning off
+  
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 97280 MiB):
+  Device 0: NVIDIA GH200 480GB, compute capability 9.0, VMM: yes, VRAM: 97280 MiB
+main: n_parallel is set to auto, using n_parallel = 4 and kv_unified = true
+build_info: b9108-928b486b0
+system_info: n_threads = 72 (n_threads_batch = 72) / 72 | CUDA : ARCHS = 900 | USE_GRAPHS = 1 | PEER_MAX_BATCH_SIZE = 128 | CPU : NEON = 1 | ARM_FMA = 1 | FP16_VA = 1 | MATMUL_INT8 = 1 | SVE = 1 | DOTPROD = 1 | SVE_CNT = 16 | OPENMP = 1 | REPACK = 1 | 
+Running without SSL
+init: using 71 threads for HTTP server
+load_tensors: loading model tensors, this can take a while... (mmap = false, direct_io = false)
+load_tensors: offloading output layer to GPU
+load_tensors: offloading 47 repeating layers to GPU
+load_tensors: offloaded 49/49 layers to GPU
+load_tensors:        CUDA0 model buffer size =  5607.73 MiB
+load_tensors:    CUDA_Host model buffer size = 118276.97 MiB
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot print_timing: id  3 | task 0 | 
+prompt eval time =    2075.52 ms /    18 tokens (  115.31 ms per token,     8.67 tokens per second)
+       eval time =   18013.80 ms /   128 tokens (  140.73 ms per token,     7.11 tokens per second)
+      total time =   20089.32 ms /   146 tokens
+```
+
+and with our c2c-moe flag we get: 
+
+```bash
+build-c2c/bin/llama-server \
+  -m /bartowski--Qwen_Qwen3.5-122B-A10B-GGUF
+  -ngl all \
+  --c2c-moe \
+  --no-mmap \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --ctx-size  12288 \
+  --reasoning off
+
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 97280 MiB):
+  Device 0: NVIDIA GH200 480GB, compute capability 9.0, VMM: yes, VRAM: 97280 MiB
+main: n_parallel is set to auto, using n_parallel = 4 and kv_unified = true
+build_info: b9108-928b486b0
+system_info: n_threads = 72 (n_threads_batch = 72) / 72 | CUDA : ARCHS = 900 | USE_GRAPHS = 1 | PEER_MAX_BATCH_SIZE = 128 | CPU : NEON = 1 | ARM_FMA = 1 | FP16_VA = 1 | MATMUL_INT8 = 1 | SVE = 1 | DOTPROD = 1 | SVE_CNT = 16 | OPENMP = 1 | REPACK = 1 | 
+Running without SSL
+init: using 71 threads for HTTP serve
+load_tensors: loading model tensors, this can take a while... (mmap = false, direct_io = false)
+load_tensors: offloading output layer to GPU
+load_tensors: offloading 47 repeating layers to GPU
+load_tensors: offloaded 49/49 layers to GPU
+load_tensors:        CUDA0 model buffer size =  5607.73 MiB
+load_tensors: CUDA0_C2C_Host model buffer size = 117504.00 MiB
+load_tensors:    CUDA_Host model buffer size =   772.97 MiB
+slot print_timing: id  3 | task 0 | 
+prompt eval time =     215.34 ms /    18 tokens (   11.96 ms per token,    83.59 tokens per second)
+       eval time =    2067.43 ms /   128 tokens (   16.15 ms per token,    61.91 tokens per second)
+      total time =    2282.77 ms /   146 tokens
+```
+
+I am posting this here because I am wondering if this could be improved further by somebody that actually knows the llamacpp code base better than me and GPT 5.5 as i would love to see optimizations for this particular hardware in the llama.cpp codebase.
+
+--REPLY by RWayne93 at 2026-06-02T20:15:17Z--
+that was something i added its not in the official llama.cpp project at all. 
+
+this patch is adding a form of CUDA Unified Virtual Addressing that works really well in a system like the gh200 because of the 900GB/s C2C NVLink between the gh200 HBM3 memory and the grace LPDDR5 memory. Its even better on MOE models. 
+
+we got like a 10x improved further. almost I was just posting it here to see if it could be improved further vllm does something similar https://docs.vllm.ai/en/stable/api/vllm/model_executor/offloader/uva/ 
+
+===COMMENT by AurelienKun at 2026-05-24T21:22:32Z===
+Hi everyone,
+I'm glad to see such discussion thread. I'm just struggling to get the max tokens out of my modest config...
+
+I'm running a Framework laptop with an AMD 7840U with iGPU 780m + dGPU 7700S with 8GB VRAM + 64Go DDR5.
+I can' get more than 27 t/s (vulkan, always trying the latest version available both compiled or via brew). I'm on Fedora 44, everything up to date.
+
+Here is my lmaunch parameters:
+
+```
+llama-server \
+--model ~/models/bartowski/Qwen_Qwen3.6-35B-A3B-GGUF/Qwen_Qwen3.6-35B-A3B-IQ4_XS.gguf
+--ctx-size 32768 \
+--jinja \
+--chat-template-kwargs '{"preserve_thinking":true}' \
+--port 1234 \
+--parallel 1 \
+--alias qwen \
+--temperature 0.6 \
+--top-p 0.95 \
+--top-k 20 \
+--min-p 0 \
+--presence-penalty 0 \
+--repeat-penalty 1.0 \
+--flash-attn on \
+--cache-type-k q8_0 \
+--cache-type-v q8_0 \
+--n-cpu-moe 26 \
+--no-mmap \
+--gpu-layers 99 \
+--mlock \
+--verbose
+```
+Here are some other parameters I tried without having a difference in output:
+```
+  --fit off 
+  --kv-unified
+  --spec-type draft-mtp
+  --draft-n-max 2,3
+  --cache-ram -1
+  --threads 16
+```
+I benchmarked the `--n-cpu-moe` value until I get best of it and despite some higher numbers here and there on nvidia 8gb cards, it does not seem to work out on my build....
+```
+0.00.344.056 I log_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+0.00.344.060 I device_info:
+0.00.344.065 I   - BLAS    : OpenBLAS (0 MiB, 0 MiB free)
+0.00.344.198 I   - Vulkan0 : AMD Radeon 780M Graphics (RADV PHOENIX) (36206 MiB, 33949 MiB free)
+0.00.344.285 I   - Vulkan1 : AMD Radeon RX 7700S (RADV NAVI33) (8176 MiB, 8149 MiB free)
+0.00.344.289 I   - CPU     : AMD Ryzen 7 7840HS w/ Radeon 780M Graphics (56029 MiB, 56029 MiB free)
+0.00.344.314 I system_info: n_threads = 8 (n_threads_batch = 8) / 16 | CPU : SSE3 = 1 | SSSE3 = 1 | AVX = 1 | AVX2 = 1 | F16C = 1 | FMA = 1 | BMI2 = 1 | AVX512 = 1 | AVX512_VBMI = 1 | AVX512_VNNI = 1 | AVX512_BF16 = 1 | OPENMP = 1 | REPACK = 1 | 
+0.00.344.339 I srv          init: running without SSL
+0.00.344.369 I srv          init: using 15 threads for HTTP server
+0.00.344.434 I srv         start: binding port with default address family
+0.00.345.646 I srv  llama_server: loading model
+0.00.345.655 I srv    load_model: loading model '~/models/bartowski/Qwen_Qwen3.6-35B-A3B-GGUF/Qwen_Qwen3.6-35B-A3B-IQ4_XS.gguf'
+0.00.345.682 I common_init_result: fitting params to device memory ...
+0.00.345.683 I common_init_result: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)
+0.04.395.282 W llama_model_loader: tensor overrides to CPU are used with mmap enabled - consider using --no-mmap for better performance
+0.08.226.374 W llama_context: n_ctx_seq (32768) < n_ctx_train (262144) -- the full capacity of the model will not be utilized
+0.08.266.588 I common_init_from_params: warming up the model with an empty run - please wait ... (--no-warmup to disable)
+0.08.758.170 I srv    load_model: initializing slots, n_slots = 1
+0.09.234.331 W srv    load_model: speculative decoding will use checkpoints
+0.09.234.340 W common_speculative_init: no implementations specified for speculative decoding
+0.09.234.341 I slot   load_model: id  0 | task -1 | new slot, n_ctx = 32768
+0.09.234.392 I srv    load_model: prompt cache is enabled, size limit: 8192 MiB
+0.09.234.393 I srv    load_model: use `--cache-ram 0` to disable the prompt cache
+0.09.234.393 I srv    load_model: for more info see https://github.com/ggml-org/llama.cpp/pull/16391
+0.09.234.407 W srv          init: --cache-idle-slots requires --kv-unified, disabling
+0.09.245.969 I init: chat template, example_format: '<|im_start|>system
+You are a helpful assistant<|im_end|>
+<|im_start|>user
+Hello<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Hi there<|im_end|>
+<|im_start|>user
+How are you?<|im_end|>
+<|im_start|>assistant
+<think>
+'
+0.09.254.273 I srv          init: init: chat template, thinking = 1
+0.09.254.319 I srv  llama_server: model loaded
+0.09.254.324 I srv  llama_server: server is listening on http://127.0.0.1:4141
+0.09.254.332 I srv  update_slots: all slots are idle
+```
+
+If someone can point to me some optimizations I missed or the methodology to find a better sweet spot (in case I'm doing wrong), I would be really thankful 🙏
+
+--REPLY by d-shehu at 2026-06-03T04:59:31Z--
+Is it actually using the iGPU as a GPU or just offloading to CPU? 
+
+You could try manually offloading layers with -ot rather than relying on --n-cpu-moe. There is a good explanation on how to use reg expr to load layers in Unsloth's guide for gpt-oss 120.
+
+https://unsloth.ai/docs/models/gpt-oss-how-to-run-and-fine-tune
+
+You will probably need to do add "-v" to show the layers and https://regexr.com/ to test the expression.
+
+===COMMENT by wenlidong1 at 2026-05-26T00:15:20Z===
+Hello everyone! I’m really excited to see this thread. I’ve run into quite a few issues while setting up llama.cpp, so I’d like to share my setup and runtime details below. Hope the experienced users here can give me some advice.
+
+**Hardware Specs**
+CPU: AMD Ryzen 9 9900X3D
+GPU: RTX 5090 32GB (32607 MiB VRAM)
+RAM: 96GB DDR5-6600
+
+**First llama-server launch command**
+llama-server -m "C:\AI\Qwen3.6-35B-A3B-Q4_K_M\model.gguf" \
+  --host 0.0.0.0 --port 8000 \
+  -ngl 99 --flash-attn on --no-mmap --mlock \
+  -t 6 -tb 4 --prio 1 \
+  -c 150000 -b 384 -ub 384 -np 1 --poll 50 \
+  --kv-unified --cache-type-k f16 --cache-type-v f16 \
+  --ctx-checkpoints 2 --cache-ram 2048 \
+  --mmproj "C:\AI\Qwen3.6-35B-A3B-UD-Q4_K_M\mmproj-F16.gguf" \
+  --image-min-tokens 1024 --timeout 1800 \
+  --no-perf --jinja \
+  --repeat-penalty 1.1 --min-p 0.04 --temperature 0.3
+Performance:
+Total VRAM usage is around 25.6 GB (including 1 GB baseline usage from Windows). The generation speed hits 236 tokens/s.
+
+**Second llama-server launch command (running concurrently on the same machine)**
+llama-server -m "C:\AI\Qwen3.6-35B-A3B-heretic-Q4_K_M\model.gguf" \
+  --host 0.0.0.0 --port 8001 \
+  -ngl 99 --cpu-moe --no-mmap --mlock --flash-attn on \
+  -t 8 -tb 4 --prio 1 \
+  -c 150000 -b 128 -ub 128 -np 1 --poll 50 \
+  --kv-unified --cache-type-k q4_0 --cache-type-v q4_0 \
+  --ctx-checkpoints 2 --cache-ram 1024 \
+  --mmproj "C:\AI\Qwen3.6-35B-A3B-UD-Q4_K_M\mmproj-F16.gguf" \
+  --image-min-tokens 1024 --timeout 1800 \
+  --no-perf --jinja \
+  --repeat-penalty 1.1 --min-p 0.04 --temperature 0.3
+**Performance:**
+When the first instance is idle (no incoming requests), this one runs at 50 tokens/s.
+
+My English is not perfect, so I translated this post myself. Any feedback or suggestions are highly appreciated!
+
+
+
+--REPLY by d-shehu at 2026-06-03T05:04:26Z--
+Why are you running 2 variants of the same model as 2 instances? Are you testing models side by side? 
+
+If you want dynamic load/unload why not use llama-swap or llama server with router mode:
+
+https://huggingface.co/blog/ggml-org/model-management-in-llamacpp
+
+===COMMENT by wenlidong1 at 2026-05-26T00:15:20Z===
+Hello everyone! I’m really excited to see this thread. I’ve run into quite a few issues while setting up llama.cpp, so I’d like to share my setup and runtime details below. Hope the experienced users here can give me some advice.
+
+**Hardware Specs**
+CPU: AMD Ryzen 9 9900X3D
+GPU: RTX 5090 32GB (32607 MiB VRAM)
+RAM: 96GB DDR5-6600
+
+**First llama-server launch command**
+llama-server -m "C:\AI\Qwen3.6-35B-A3B-Q4_K_M\model.gguf" \
+  --host 0.0.0.0 --port 8000 \
+  -ngl 99 --flash-attn on --no-mmap --mlock \
+  -t 6 -tb 4 --prio 1 \
+  -c 150000 -b 384 -ub 384 -np 1 --poll 50 \
+  --kv-unified --cache-type-k f16 --cache-type-v f16 \
+  --ctx-checkpoints 2 --cache-ram 2048 \
+  --mmproj "C:\AI\Qwen3.6-35B-A3B-UD-Q4_K_M\mmproj-F16.gguf" \
+  --image-min-tokens 1024 --timeout 1800 \
+  --no-perf --jinja \
+  --repeat-penalty 1.1 --min-p 0.04 --temperature 0.3
+Performance:
+Total VRAM usage is around 25.6 GB (including 1 GB baseline usage from Windows). The generation speed hits 236 tokens/s.
+
+**Second llama-server launch command (running concurrently on the same machine)**
+llama-server -m "C:\AI\Qwen3.6-35B-A3B-heretic-Q4_K_M\model.gguf" \
+  --host 0.0.0.0 --port 8001 \
+  -ngl 99 --cpu-moe --no-mmap --mlock --flash-attn on \
+  -t 8 -tb 4 --prio 1 \
+  -c 150000 -b 128 -ub 128 -np 1 --poll 50 \
+  --kv-unified --cache-type-k q4_0 --cache-type-v q4_0 \
+  --ctx-checkpoints 2 --cache-ram 1024 \
+  --mmproj "C:\AI\Qwen3.6-35B-A3B-UD-Q4_K_M\mmproj-F16.gguf" \
+  --image-min-tokens 1024 --timeout 1800 \
+  --no-perf --jinja \
+  --repeat-penalty 1.1 --min-p 0.04 --temperature 0.3
+**Performance:**
+When the first instance is idle (no incoming requests), this one runs at 50 tokens/s.
+
+My English is not perfect, so I translated this post myself. Any feedback or suggestions are highly appreciated!
+
+
+
+--REPLY by wenlidong1 at 2026-06-03T12:01:11Z--
+On one hand, I’m benchmarking how fast this model can run. I only tinker with it after work since I’m swamped with my regular job. I haven’t quite wrapped my head around llama-swap or llama server in router mode yet.
+I’m only aiming for the best local performance on my machine. After tuning, my current setup is as follows:
+llama-server ^
+-m "C:\AI\Qwen3.6-35B-A3B-Q5_K_M\model.gguf" ^
+--host 0.0.0.0 --port 8000 ^
+-ngl 99 ^
+--flash-attn on ^
+--no-mmap ^
+--mlock ^
+-t 8 -tb 4 ^
+--prio 1 ^
+-c 184320 ^
+-b 384  -ub 384 ^
+-np 1 ^
+--poll 38 ^
+--kv-unified ^
+--cache-type-k f16 ^
+--cache-type-v f16 ^
+--ctx-checkpoints 128 ^
+--cache-ram 8172 ^
+--mmproj "C:\AI\Qwen3.6-35B-A3B-UD-Q4_K_M\mmproj-F16.gguf" ^
+--image-min-tokens 1024 ^
+--timeout 1800 ^
+--no-perf ^
+--jinja ^
+--override-kv qwen35moe.expert_used_count=int:22 ^
+--repeat-penalty 1.1 --min-p 0.05 --temperature 0.35
+
+
+===COMMENT by iridium87 at 2026-05-28T06:29:48Z===
+That's a great idea.
+My setup is 5950x, 64GB with a 5070ti + 3060 12GB (PCIe 3 x1) running in layer mode and here is my observation.
+
+I was running with b = 4096 ub = 1024 probably seen somewhere on the internet, and was getting around 70k ctx and 15tks with Gemma 4 31B, until I came across ServeurpersoCom config here #23502  and tried his config with b = 128 ub = 512 and I got 80k ctx and 18tks, prefill is faster too.
+So worth experimenting with batch sizes.
+And I am curious if someone can shed light on how to optimize this.
+Cheers!
+
+--REPLY by iridium87 at 2026-05-29T08:23:36Z--
+### Further testing and findings on batch sizes
+
+**TL;DR:** Batch sizes depend on hardware, use case, and model. Benchmark your specific setup — defaults may be leaving context on the table.
+
+From what I have gathered smaller batch sizes **might** be beneficial in the following cases: discrete GPUs, memory constraints, and optimizing for context, **higher** batch sizes might be necessary for unified memory devices, optimizing for multi user setups, memory is not a concern. Throughput seems unaffected or in margin of error.
+
+_See Sources section for more details_
+
+For my specific hardware (5950x, 64GB with a 5070ti + 3060 12GB (PCIe 3 x1), the sweet spot seems to be around `b = 128 ub = 512` and `b=256, ub=128` which yields around +30% real world increase in context size with no loss in throughput for Gemma 4 31B
+
+
+With a Nemotron 4B BF16 model which fits in a single GPU the results are slightly different but still lower batch sizes perform better `b = 256-1024 ub = 256`
+
+TO DOs:
+
+- [ ] Test batch sizes on MoE models
+- [ ] Test the effect of -fa
+- [ ] Test unified memory batch sizes (help needed)
+- [ ] Test multi request setups (help appreciated)
+
+-------------------------------------------------------------
+
+<details><summary><b>Sources and further readings:</b></summary>
+
+
+NVIDIA : [https://docs.nvidia.com/deeplearning/tensorrt/latest/performance/optimization.html](url)
+
+> On NVIDIA Ada Lovelace or later GPUs, decreasing the batch size can improve the throughput significantly if the smaller batch sizes help the GPU cache the input/output values in the L2 cache.
+
+MLX documentation, however, suggest that higher batch sizes might be needed to correctly dispatch work to the GPU [https://ml-explore.github.io/mlx/build/html/usage/unified_memory.html](url)
+
+> a = mx.random.uniform(shape=(4096, 512))
+b = mx.random.uniform(shape=(512, 4))
+The first matmul operation is a good fit for the GPU since it’s more compute dense. The second sequence of operations are a better fit for the CPU, since they are very small and would probably be overhead bound on the GPU.
+
+A research paper by Microsoft 
+[https://arxiv.org/pdf/2412.03594](url)
+> The target of the token-batching is to enlarge the number of tokens in the batch under the constraint of GPU memory size. Thus there are two main factors that matters for the token-batching procedure: whether the number of tokens is large enough in the batch to saturate the GPU, indicating the current status of the token-batch; and whether the remaining memory is enough to accommodate more pre fill chunks, indicating if the status can be improved.
+
+Which also references a vLLM discussion [https://github.com/vllm-project/vllm/issues/6801](url)
+
+A research paper on SYCL batched kernels [https://hal.science/hal-05015978/document](url)
+
+> There are still incentives to limit allocations in shmem/lds or registers. First because there is a limit to the size of these memories. In addition, the larger the allocations per work-group or work-item, the less threads can fit in parallel in the physical memory of a single GPU streaming multiprocessor / compute unit (SM/CU). This limits GPU occupancy and has an impact on performance
+</details>
+
+---------------------------------------------
+**Test results (big tables)**
+
+<details><summary> Full test Results Gemma 4 31B  5070ti + 3060 12GB (PCIe 3 x1) </summary>
+
+> | model                    | size      | params  | backend | ngl | n_batch | n_ubatch | type_k | type_v | fa | mmap | test  | t/s            |
+> |--------------------------|-----------|---------|---------|-----|---------|----------|--------|--------|----|------|-------|----------------|
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 16       | q8_0   | q8_0   | 1  | 0    | pp512 | 245.96 ± 0.28  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 16       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.88 ± 0.01   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 32       | q8_0   | q8_0   | 1  | 0    | pp512 | 245.75 ± 0.11  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 32       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.86 ± 0.01   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 64       | q8_0   | q8_0   | 1  | 0    | pp512 | 245.27 ± 0.09  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 64       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.84 ± 0.02   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 128      | q8_0   | q8_0   | 1  | 0    | pp512 | 244.68 ± 0.93  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 128      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.76 ± 0.06   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 256      | q8_0   | q8_0   | 1  | 0    | pp512 | 243.56 ± 0.37  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 256      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.82 ± 0.09   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 512      | q8_0   | q8_0   | 1  | 0    | pp512 | 244.61 ± 0.48  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 512      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.57 ± 0.16   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 1024     | q8_0   | q8_0   | 1  | 0    | pp512 | 243.23 ± 0.97  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 1024     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.78 ± 0.05   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 2048     | q8_0   | q8_0   | 1  | 0    | pp512 | 243.47 ± 0.61  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 2048     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.77 ± 0.09   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 4096     | q8_0   | q8_0   | 1  | 0    | pp512 | 243.97 ± 0.32  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 16      | 4096     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.82 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 16       | q8_0   | q8_0   | 1  | 0    | pp512 | 336.52 ± 0.48  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 16       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.71 ± 0.06   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 32       | q8_0   | q8_0   | 1  | 0    | pp512 | 412.80 ± 0.52  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 32       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.81 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 64       | q8_0   | q8_0   | 1  | 0    | pp512 | 414.10 ± 0.36  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 64       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.74 ± 0.05   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 128      | q8_0   | q8_0   | 1  | 0    | pp512 | 413.99 ± 0.54  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 128      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.78 ± 0.06   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 256      | q8_0   | q8_0   | 1  | 0    | pp512 | 413.30 ± 0.70  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 256      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.78 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 512      | q8_0   | q8_0   | 1  | 0    | pp512 | 413.93 ± 0.38  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 512      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.78 ± 0.07   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 1024     | q8_0   | q8_0   | 1  | 0    | pp512 | 413.54 ± 0.28  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 1024     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.79 ± 0.05   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 2048     | q8_0   | q8_0   | 1  | 0    | pp512 | 413.58 ± 0.50  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 2048     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.80 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 4096     | q8_0   | q8_0   | 1  | 0    | pp512 | 413.84 ± 0.47  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 32      | 4096     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.79 ± 0.06   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 16       | q8_0   | q8_0   | 1  | 0    | pp512 | 289.48 ± 0.61  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 16       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.76 ± 0.06   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 32       | q8_0   | q8_0   | 1  | 0    | pp512 | 557.89 ± 0.75  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 32       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.68 ± 0.09   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 64       | q8_0   | q8_0   | 1  | 0    | pp512 | 612.05 ± 0.84  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 64       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.80 ± 0.03   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 128      | q8_0   | q8_0   | 1  | 0    | pp512 | 612.12 ± 1.34  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 128      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.77 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 256      | q8_0   | q8_0   | 1  | 0    | pp512 | 612.09 ± 0.83  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 256      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.77 ± 0.09   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 512      | q8_0   | q8_0   | 1  | 0    | pp512 | 612.58 ± 0.99  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 512      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.77 ± 0.06   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 1024     | q8_0   | q8_0   | 1  | 0    | pp512 | 612.20 ± 1.14  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 1024     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.75 ± 0.03   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 2048     | q8_0   | q8_0   | 1  | 0    | pp512 | 612.02 ± 0.96  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 2048     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.77 ± 0.07   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 4096     | q8_0   | q8_0   | 1  | 0    | pp512 | 611.95 ± 0.71  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 64      | 4096     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.74 ± 0.09   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 16       | q8_0   | q8_0   | 1  | 0    | pp512 | 274.11 ± 0.65  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 16       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.76 ± 0.11   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 32       | q8_0   | q8_0   | 1  | 0    | pp512 | 478.62 ± 0.87  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 32       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.79 ± 0.07   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 64       | q8_0   | q8_0   | 1  | 0    | pp512 | 792.61 ± 0.94  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 64       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.78 ± 0.07   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 128      | q8_0   | q8_0   | 1  | 0    | pp512 | 789.35 ± 1.65  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 128      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.80 ± 0.02   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 256      | q8_0   | q8_0   | 1  | 0    | pp512 | 789.23 ± 1.38  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 256      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.79 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 512      | q8_0   | q8_0   | 1  | 0    | pp512 | 789.00 ± 1.77  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 512      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.76 ± 0.07   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 1024     | q8_0   | q8_0   | 1  | 0    | pp512 | 789.56 ± 1.51  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 1024     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.70 ± 0.09   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 2048     | q8_0   | q8_0   | 1  | 0    | pp512 | 788.91 ± 1.49  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 2048     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.68 ± 0.06   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 4096     | q8_0   | q8_0   | 1  | 0    | pp512 | 790.72 ± 1.01  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 128     | 4096     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.77 ± 0.05   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 16       | q8_0   | q8_0   | 1  | 0    | pp512 | 268.09 ± 0.37  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 16       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.75 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 32       | q8_0   | q8_0   | 1  | 0    | pp512 | 454.11 ± 0.55  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 32       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.75 ± 0.07   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 64       | q8_0   | q8_0   | 1  | 0    | pp512 | 681.54 ± 1.62  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 64       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.79 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 128      | q8_0   | q8_0   | 1  | 0    | pp512 | 958.48 ± 1.38  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 128      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.78 ± 0.09   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 256      | q8_0   | q8_0   | 1  | 0    | pp512 | 944.55 ± 0.35  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 256      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.73 ± 0.05   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 512      | q8_0   | q8_0   | 1  | 0    | pp512 | 943.81 ± 0.94  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 512      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.74 ± 0.08   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 1024     | q8_0   | q8_0   | 1  | 0    | pp512 | 944.15 ± 1.50  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 1024     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.80 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 2048     | q8_0   | q8_0   | 1  | 0    | pp512 | 943.29 ± 1.05  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 2048     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.71 ± 0.13   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 4096     | q8_0   | q8_0   | 1  | 0    | pp512 | 943.76 ± 1.50  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 256     | 4096     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.74 ± 0.09   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 16       | q8_0   | q8_0   | 1  | 0    | pp512 | 266.39 ± 0.74  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 16       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.77 ± 0.02   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 32       | q8_0   | q8_0   | 1  | 0    | pp512 | 447.83 ± 1.32  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 32       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.77 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 64       | q8_0   | q8_0   | 1  | 0    | pp512 | 664.38 ± 1.12  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 64       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.80 ± 0.05   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 128      | q8_0   | q8_0   | 1  | 0    | pp512 | 890.78 ± 0.70  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 128      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.78 ± 0.05   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 256      | q8_0   | q8_0   | 1  | 0    | pp512 | 960.40 ± 0.53  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 256      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.77 ± 0.08   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 512      | q8_0   | q8_0   | 1  | 0    | pp512 | 841.14 ± 5.03  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 512      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.80 ± 0.05   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 1024     | q8_0   | q8_0   | 1  | 0    | pp512 | 840.90 ± 6.34  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 1024     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.78 ± 0.03   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 2048     | q8_0   | q8_0   | 1  | 0    | pp512 | 840.57 ± 5.27  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 2048     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.79 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 4096     | q8_0   | q8_0   | 1  | 0    | pp512 | 840.86 ± 5.61  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 512     | 4096     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.75 ± 0.08   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 16       | q8_0   | q8_0   | 1  | 0    | pp512 | 266.25 ± 0.69  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 16       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.81 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 32       | q8_0   | q8_0   | 1  | 0    | pp512 | 449.38 ± 0.22  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 32       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.81 ± 0.02   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 64       | q8_0   | q8_0   | 1  | 0    | pp512 | 664.54 ± 1.39  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 64       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.81 ± 0.06   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 128      | q8_0   | q8_0   | 1  | 0    | pp512 | 889.66 ± 1.03  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 128      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.59 ± 0.33   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 256      | q8_0   | q8_0   | 1  | 0    | pp512 | 960.53 ± 0.85  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 256      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.04 ± 1.43   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 512      | q8_0   | q8_0   | 1  | 0    | pp512 | 841.03 ± 6.81  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 512      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.72 ± 0.06   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 1024     | q8_0   | q8_0   | 1  | 0    | pp512 | 840.58 ± 6.02  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 1024     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.74 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 2048     | q8_0   | q8_0   | 1  | 0    | pp512 | 840.79 ± 6.27  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 2048     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.72 ± 0.10   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 4096     | q8_0   | q8_0   | 1  | 0    | pp512 | 840.48 ± 5.27  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 1024    | 4096     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.73 ± 0.05   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 16       | q8_0   | q8_0   | 1  | 0    | pp512 | 266.52 ± 0.25  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 16       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.76 ± 0.09   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 32       | q8_0   | q8_0   | 1  | 0    | pp512 | 449.03 ± 0.65  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 32       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.76 ± 0.02   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 64       | q8_0   | q8_0   | 1  | 0    | pp512 | 659.34 ± 3.87  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 64       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.78 ± 0.10   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 128      | q8_0   | q8_0   | 1  | 0    | pp512 | 888.88 ± 1.18  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 128      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.81 ± 0.05   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 256      | q8_0   | q8_0   | 1  | 0    | pp512 | 959.67 ± 1.56  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 256      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.62 ± 0.09   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 512      | q8_0   | q8_0   | 1  | 0    | pp512 | 838.75 ± 7.44  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 512      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.67 ± 0.09   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 1024     | q8_0   | q8_0   | 1  | 0    | pp512 | 838.41 ± 7.23  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 1024     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.69 ± 0.11   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 2048     | q8_0   | q8_0   | 1  | 0    | pp512 | 839.71 ± 5.46  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 2048     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.79 ± 0.06   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 4096     | q8_0   | q8_0   | 1  | 0    | pp512 | 840.63 ± 5.71  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 2048    | 4096     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.77 ± 0.05   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 16       | q8_0   | q8_0   | 1  | 0    | pp512 | 265.72 ± 0.97  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 16       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.77 ± 0.03   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 32       | q8_0   | q8_0   | 1  | 0    | pp512 | 447.63 ± 0.52  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 32       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.70 ± 0.06   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 64       | q8_0   | q8_0   | 1  | 0    | pp512 | 663.16 ± 1.17  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 64       | q8_0   | q8_0   | 1  | 0    | tg128 | 21.79 ± 0.03   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 128      | q8_0   | q8_0   | 1  | 0    | pp512 | 888.59 ± 0.74  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 128      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.75 ± 0.04   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 256      | q8_0   | q8_0   | 1  | 0    | pp512 | 959.75 ± 0.49  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 256      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.77 ± 0.05   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 512      | q8_0   | q8_0   | 1  | 0    | pp512 | 839.66 ± 5.70  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 512      | q8_0   | q8_0   | 1  | 0    | tg128 | 21.78 ± 0.06   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 1024     | q8_0   | q8_0   | 1  | 0    | pp512 | 839.13 ± 5.37  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 1024     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.75 ± 0.09   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 2048     | q8_0   | q8_0   | 1  | 0    | pp512 | 833.65 ± 9.42  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 2048     | q8_0   | q8_0   | 1  | 0    | tg128 | 21.64 ± 0.07   |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 4096     | q8_0   | q8_0   | 1  | 0    | pp512 | 833.88 ± 3.53  |
+> | gemma4 31B Q4_K - Medium | 17.52 GiB | 30.70 B | CUDA    | 99  | 4096    | 4096     | q8_0   | q8_0   | 1  | 0    | tg1.\ |    
+
+</details>
+
+<details><summary>Excerpt test Results Nemotron 4B BF16  5070ti</summary>
+
+> | model              | size     | params | backend | ngl | n_batch | n_ubatch | sm   | fa | mmap | test  | t/s               |
+> |--------------------|----------|--------|---------|-----|---------|----------|------|----|------|-------|-------------------|
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 16       | none | 1  | 0    | pp512 | 1444.24 ± 11.37   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 16       | none | 1  | 0    | tg128 | 104.08 ± 0.72     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 32       | none | 1  | 0    | pp512 | 1450.80 ± 3.42    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 32       | none | 1  | 0    | tg128 | 104.32 ± 0.40     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 64       | none | 1  | 0    | pp512 | 1450.21 ± 2.58    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 64       | none | 1  | 0    | tg128 | 104.37 ± 0.08     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 128      | none | 1  | 0    | pp512 | 1452.28 ± 1.88    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 128      | none | 1  | 0    | tg128 | 104.39 ± 0.07     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 256      | none | 1  | 0    | pp512 | 1450.80 ± 1.65    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 256      | none | 1  | 0    | tg128 | 104.37 ± 0.09     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 512      | none | 1  | 0    | pp512 | 1432.44 ± 11.51   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 512      | none | 1  | 0    | tg128 | 104.36 ± 0.10     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 1024     | none | 1  | 0    | pp512 | 1420.90 ± 1.76    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 1024     | none | 1  | 0    | tg128 | 104.22 ± 0.39     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 2048     | none | 1  | 0    | pp512 | 1421.74 ± 3.70    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 2048     | none | 1  | 0    | tg128 | 104.10 ± 0.75     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 4096     | none | 1  | 0    | pp512 | 1420.74 ± 3.72    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 16      | 4096     | none | 1  | 0    | tg128 | 104.23 ± 0.58     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 16       | none | 1  | 0    | pp512 | 1356.82 ± 3.74    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 16       | none | 1  | 0    | tg128 | 102.79 ± 1.50     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 32       | none | 1  | 0    | pp512 | 2385.40 ± 10.45   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 32       | none | 1  | 0    | tg128 | 104.39 ± 0.06     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 64       | none | 1  | 0    | pp512 | 2384.98 ± 12.08   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 64       | none | 1  | 0    | tg128 | 103.38 ± 1.38     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 128      | none | 1  | 0    | pp512 | 2382.34 ± 4.63    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 128      | none | 1  | 0    | tg128 | 104.39 ± 0.07     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 256      | none | 1  | 0    | pp512 | 2383.43 ± 9.71    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 256      | none | 1  | 0    | tg128 | 101.91 ± 0.13     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 512      | none | 1  | 0    | pp512 | 2377.52 ± 6.48    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 512      | none | 1  | 0    | tg128 | 104.44 ± 0.09     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 1024     | none | 1  | 0    | pp512 | 2383.96 ± 10.27   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 1024     | none | 1  | 0    | tg128 | 103.90 ± 1.18     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 2048     | none | 1  | 0    | pp512 | 2382.71 ± 4.88    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 2048     | none | 1  | 0    | tg128 | 102.91 ± 1.36     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 4096     | none | 1  | 0    | pp512 | 2382.33 ± 9.44    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 32      | 4096     | none | 1  | 0    | tg128 | 103.42 ± 1.27     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 16       | none | 1  | 0    | pp512 | 1423.60 ± 5.87    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 16       | none | 1  | 0    | tg128 | 104.45 ± 0.05     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 32       | none | 1  | 0    | pp512 | 2274.03 ± 11.44   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 32       | none | 1  | 0    | tg128 | 103.93 ± 1.02     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 64       | none | 1  | 0    | pp512 | 3950.97 ± 36.54   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 64       | none | 1  | 0    | tg128 | 104.40 ± 0.21     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 128      | none | 1  | 0    | pp512 | 3953.33 ± 25.35   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 128      | none | 1  | 0    | tg128 | 104.41 ± 0.05     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 256      | none | 1  | 0    | pp512 | 3924.61 ± 27.79   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 256      | none | 1  | 0    | tg128 | 103.94 ± 1.17     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 512      | none | 1  | 0    | pp512 | 3926.34 ± 50.07   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 512      | none | 1  | 0    | tg128 | 104.19 ± 0.61     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 1024     | none | 1  | 0    | pp512 | 3964.14 ± 41.44   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 1024     | none | 1  | 0    | tg128 | 104.25 ± 0.27     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 2048     | none | 1  | 0    | pp512 | 3954.10 ± 22.55   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 2048     | none | 1  | 0    | tg128 | 104.19 ± 0.43     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 4096     | none | 1  | 0    | pp512 | 3929.08 ± 51.43   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 64      | 4096     | none | 1  | 0    | tg128 | 104.37 ± 0.08     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 16       | none | 1  | 0    | pp512 | 1495.83 ± 11.51   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 16       | none | 1  | 0    | tg128 | 103.92 ± 1.08     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 32       | none | 1  | 0    | pp512 | 2296.29 ± 31.33   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 32       | none | 1  | 0    | tg128 | 104.34 ± 0.14     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 64       | none | 1  | 0    | pp512 | 4000.11 ± 13.32   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 64       | none | 1  | 0    | tg128 | 104.38 ± 0.07     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 128      | none | 1  | 0    | pp512 | 5651.76 ± 30.26   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 128      | none | 1  | 0    | tg128 | 104.23 ± 0.22     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 256      | none | 1  | 0    | pp512 | 5651.75 ± 56.23   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 256      | none | 1  | 0    | tg128 | 104.22 ± 0.52     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 512      | none | 1  | 0    | pp512 | 5647.26 ± 46.90   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 512      | none | 1  | 0    | tg128 | 103.71 ± 1.01     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 1024     | none | 1  | 0    | pp512 | 5666.41 ± 52.42   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 1024     | none | 1  | 0    | tg128 | 104.41 ± 0.10     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 2048     | none | 1  | 0    | pp512 | 5689.71 ± 12.68   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 2048     | none | 1  | 0    | tg128 | 104.39 ± 0.10     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 4096     | none | 1  | 0    | pp512 | 5626.77 ± 52.97   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 128     | 4096     | none | 1  | 0    | tg128 | 104.42 ± 0.08     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 16       | none | 1  | 0    | pp512 | 1536.93 ± 12.58   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 16       | none | 1  | 0    | tg128 | 103.93 ± 0.53     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 32       | none | 1  | 0    | pp512 | 2505.12 ± 11.04   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 32       | none | 1  | 0    | tg128 | 104.42 ± 0.15     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 64       | none | 1  | 0    | pp512 | 4012.07 ± 34.22   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 64       | none | 1  | 0    | tg128 | 104.41 ± 0.10     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 128      | none | 1  | 0    | pp512 | 5948.13 ± 23.07   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 128      | none | 1  | 0    | tg128 | 103.88 ± 1.38     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 256      | none | 1  | 0    | pp512 | 6931.30 ± 6.79    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 256      | none | 1  | 0    | tg128 | 104.16 ± 0.77     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 512      | none | 1  | 0    | pp512 | 6915.72 ± 36.79   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 512      | none | 1  | 0    | tg128 | 104.12 ± 0.85     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 1024     | none | 1  | 0    | pp512 | 6907.32 ± 43.56   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 1024     | none | 1  | 0    | tg128 | 103.85 ± 1.25     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 2048     | none | 1  | 0    | pp512 | 6919.19 ± 29.04   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 2048     | none | 1  | 0    | tg128 | 104.24 ± 0.52     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 4096     | none | 1  | 0    | pp512 | 6922.82 ± 18.06   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 256     | 4096     | none | 1  | 0    | tg128 | 104.46 ± 0.13     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 16       | none | 1  | 0    | pp512 | 1557.14 ± 4.07    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 16       | none | 1  | 0    | tg128 | 104.40 ± 0.06     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 32       | none | 1  | 0    | pp512 | 2539.10 ± 10.58   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 32       | none | 1  | 0    | tg128 | 104.43 ± 0.10     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 64       | none | 1  | 0    | pp512 | 4094.07 ± 9.64    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 64       | none | 1  | 0    | tg128 | 104.43 ± 0.14     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 128      | none | 1  | 0    | pp512 | 5999.90 ± 27.24   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 128      | none | 1  | 0    | tg128 | 104.43 ± 0.11     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 256      | none | 1  | 0    | pp512 | 6997.11 ± 26.82   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 256      | none | 1  | 0    | tg128 | 104.16 ± 0.72     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 512      | none | 1  | 0    | pp512 | 7302.38 ± 153.20  |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 512      | none | 1  | 0    | tg128 | 104.36 ± 0.33     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 1024     | none | 1  | 0    | pp512 | 7380.62 ± 150.24  |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 1024     | none | 1  | 0    | tg128 | 104.14 ± 0.84     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 2048     | none | 1  | 0    | pp512 | 7356.15 ± 192.23  |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 2048     | none | 1  | 0    | tg128 | 104.15 ± 0.72     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 4096     | none | 1  | 0    | pp512 | 7353.98 ± 193.46  |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 512     | 4096     | none | 1  | 0    | tg128 | 104.34 ± 0.36     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 16       | none | 1  | 0    | pp512 | 1556.13 ± 3.46    |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 16       | none | 1  | 0    | tg128 | 104.49 ± 0.13     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 32       | none | 1  | 0    | pp512 | 2538.90 ± 14.64   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 32       | none | 1  | 0    | tg128 | 104.46 ± 0.14     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 64       | none | 1  | 0    | pp512 | 4107.69 ± 25.90   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 64       | none | 1  | 0    | tg128 | 104.43 ± 0.09     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 128      | none | 1  | 0    | pp512 | 6019.86 ± 13.06   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 128      | none | 1  | 0    | tg128 | 104.25 ± 0.61     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 256      | none | 1  | 0    | pp512 | 7015.91 ± 10.12   |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 256      | none | 1  | 0    | tg128 | 104.43 ± 0.17     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 512      | none | 1  | 0    | pp512 | 7348.81 ± 191.43  |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 512      | none | 1  | 0    | tg128 | 104.45 ± 0.13     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 1024     | none | 1  | 0    | pp512 | 7347.27 ± 138.49  |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 1024     | none | 1  | 0    | tg128 | 104.43 ± 0.10     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 2048     | none | 1  | 0    | pp512 | 7332.95 ± 171.38  |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 2048     | none | 1  | 0    | tg128 | 103.93 ± 1.25     |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 4096     | none | 1  | 0    | pp512 | 7339.77 ± 184.33  |
+> | nemotron_h ?B BF16 | 7.40 GiB | 3.97 B | CUDA    | 99  | 1024    | 4096     | none | 1  | 0    | tg128 | 104.34 ± 0.31     |
+
+</details>
+
+===COMMENT by iridium87 at 2026-05-28T06:29:48Z===
+That's a great idea.
+My setup is 5950x, 64GB with a 5070ti + 3060 12GB (PCIe 3 x1) running in layer mode and here is my observation.
+
+I was running with b = 4096 ub = 1024 probably seen somewhere on the internet, and was getting around 70k ctx and 15tks with Gemma 4 31B, until I came across ServeurpersoCom config here #23502  and tried his config with b = 128 ub = 512 and I got 80k ctx and 18tks, prefill is faster too.
+So worth experimenting with batch sizes.
+And I am curious if someone can shed light on how to optimize this.
+Cheers!
+
+--REPLY by d-shehu at 2026-06-04T00:18:54Z--
+How did you test to find the sweet spot? Did you use llama-bench or something a bit more sophisticated?
+
+I ran some tests this afternoon both with llama-bench and Hermes agent but the numbers I came up with are not consistent with other experimental values from online posts. 
+
+Example: Qwen 3.6 27b   -ub 512 -b 16384
+
+===COMMENT by iridium87 at 2026-05-28T06:29:48Z===
+That's a great idea.
+My setup is 5950x, 64GB with a 5070ti + 3060 12GB (PCIe 3 x1) running in layer mode and here is my observation.
+
+I was running with b = 4096 ub = 1024 probably seen somewhere on the internet, and was getting around 70k ctx and 15tks with Gemma 4 31B, until I came across ServeurpersoCom config here #23502  and tried his config with b = 128 ub = 512 and I got 80k ctx and 18tks, prefill is faster too.
+So worth experimenting with batch sizes.
+And I am curious if someone can shed light on how to optimize this.
+Cheers!
+
+--REPLY by wbste at 2026-06-04T01:12:11Z--
+Yeah definitely sweep with llama bench. Quickest way to find some optimal settings.
+
+===COMMENT by iridium87 at 2026-05-28T06:29:48Z===
+That's a great idea.
+My setup is 5950x, 64GB with a 5070ti + 3060 12GB (PCIe 3 x1) running in layer mode and here is my observation.
+
+I was running with b = 4096 ub = 1024 probably seen somewhere on the internet, and was getting around 70k ctx and 15tks with Gemma 4 31B, until I came across ServeurpersoCom config here #23502  and tried his config with b = 128 ub = 512 and I got 80k ctx and 18tks, prefill is faster too.
+So worth experimenting with batch sizes.
+And I am curious if someone can shed light on how to optimize this.
+Cheers!
+
+--REPLY by iridium87 at 2026-06-05T08:07:43Z--
+Yes, I was using [llama bench](https://github.com/ggml-org/llama.cpp/blob/master/tools/llama-bench/README.md) for the tests. I only now had some time to play with it, but it is really cool as you can do -b 1024, 2048, 4069, … -ub 1024, 2048, 4069, … and it will bench all the combinations.
+You have an interesting setup, do you have multiple users? I am curious what lowering the batch size will do in your case. I am thinking that maybe in an RPC setup smaller batch sizes might increase the throughput (just a theory). I am also curious how did you arrive to the  -b 16384 number?
+
+===COMMENT by iridium87 at 2026-05-28T06:29:48Z===
+That's a great idea.
+My setup is 5950x, 64GB with a 5070ti + 3060 12GB (PCIe 3 x1) running in layer mode and here is my observation.
+
+I was running with b = 4096 ub = 1024 probably seen somewhere on the internet, and was getting around 70k ctx and 15tks with Gemma 4 31B, until I came across ServeurpersoCom config here #23502  and tried his config with b = 128 ub = 512 and I got 80k ctx and 18tks, prefill is faster too.
+So worth experimenting with batch sizes.
+And I am curious if someone can shed light on how to optimize this.
+Cheers!
+
+--REPLY by d-shehu at 2026-06-05T17:19:36Z--
+When profiling Hermes it seems to be gated by prompt processing. I thought about creating my own test with my RAG library and a dozen PDFs  ~64K context (100 pages). But I'm not sure if it's a good test.
+
+I'm using RPC with Connectx 4 Lx NICs with 2 nodes mainly to minimize latency. RPC works very well with MOE and especially if models fit in VRAM. But degrades heavily with dense models and offloading to RAM.
+
+The 16384, 512 is simply the highest performing (pp) I could benchmark without llama-bench spilling into RAM. I ran a few tests with llama-cli and Hermes and all seemed ok with these values.
+
+Oddly, most of my models are capable of running with 128K or 256K of context with llama-cli and llama-server. I assume when I set the context to 128K it is pre-allocating the memory ... at least that's what I see when I measure memory usage. 
+
+So I don't understand why llama-bench starts using system RAM with > 16K for batch.
+
+===COMMENT by motosir at 2026-06-08T13:27:22Z===
+Thanks for this topic! 
+
+I'm running RTX pro 6000 Max-Q, 128 GB RAM in a dedicated headless server. 
+
+Would love optimal settings with extra features like MTP, etc for running Qwen 3.6 27B and Gemma 31B/26B-A4B to get the most out of the 96 GB VRAM I've got available. I usually run single threaded stuff from Pi harness. 
+
+I run with llama server in router mode (with models-preset and .ini config), very basic set of MCP servers (3) and my current configuration is:
+
+start script
+``` 
+lama-server \
+    --host 192.168.0.41 \
+    --port 8185 \
+    --models-max 1\
+    --models-preset llama-server-models-mtp.ini \
+    --webui-mcp-proxy
+```
+
+and config:
+```
+
+; Global settings
+[*]
+; fit = off               ; Disable automatic memory fitting (default: on)
+ngl = 999               ; Full GPU offload
+ctk = q8_0              ; KV cache key quantization
+ctv = q8_0              ; KV cache value quantization
+fa = on                 ; Enable flash attention
+mlock = on              ; Lock model in RAM
+np = 4                  ; Parallel request batching (default: 4)
+kvu = on                ; Unified KV cache buffer (default: on)
+stop-timeout = 2        ; Force-kill child process after graceful shutdown timeout in seconds (default: 10)
+sleep-idle-seconds = 3000 ; Unload weights on child process
+b = 4096                ; Logical maximum batch size (default: 2048)
+ub = 4096               ; Physical maximum batch size (default: 512)
+jinja = true            ;
+cb = on                 ; continuous batching (essential with np>1)
+t = 16                  ; generation threads (1/physical core) 
+; tb = 16                 ; batch threads  
+cram = 32768            ; KV cache RAM limit: 32GB
+cache-reuse = 512       ; cache reuse via KV shifting, Pi sends full conversation history each request. This reuses cached prefix instead of re-evaluating. 
+
+[Dense-Vision-Qwen3.6-27B(Q8_0)]
+m = qwen36/27b/Qwen3.6-27B-Q8_0.gguf
+mm = qwen36/27b/mmproj-F16.gguf
+temperature=0.7
+top-p=0.8
+top-k=20
+min-p = 0.0
+presence-penalty=1.5
+c = 225280
+chat-template-kwargs = {"preserve_thinking": true}
+
+[MoE-Vision-Qwen3.6-35B-A3B(Q8_0)]
+m = qwen36/Qwen3.6-35B-A3B-Q8_0.gguf
+mm = qwen36/mmproj-F16.gguf
+temperature=1.0
+top-p=0.95
+top-k=20
+min-p = 0.0
+presence-penalty=1.5
+repeat-penalty=1.1
+c = 225280
+chat-template-kwargs = {"preserve_thinking": true}
+
+[coding/Gemma4-31B-llmfan46-uncensored(Q8_0)]
+m = gemma4-31B-llmfan46/Gemma-4-Harmonia-31B-uncensored-heretic-mmproj-BF16.gguf
+mm = google/gemma4-31B-llmfan46/Gemma-4-Harmonia-31B-uncensored-heretic-Q8_0.gguf
+temperature=1.0
+top-p=0.95
+top-k=64
+c = 225280
+chat-template-kwargs = {"enable_thinking": true}
+
+[coding/Gemma4-26B-A4B-llmfan46-uncensored(Q8_0)]
+m = google/gemma4-26B-A4B-llmfan46/gemma-4-26B-A4B-it-ultra-uncensored-heretic-Q8_0.gguf
+mm = google/gemma4-26B-A4B-llmfan46/gemma-4-26B-A4B-it-mmproj-BF16.gguf
+temperature=1.0
+top-p=0.95
+top-k=64
+c = 225280
+chat-template-kwargs = {"enable_thinking": true}
+```
+
+It's hard to keep up with all the improvements and new settings, so any suggestions for improvement would be very much appreciated. 
+Thank you!.
+
+
+
+--REPLY by ggerganov at 2026-06-18T09:40:59Z--
+With Qwen3.6-27B, you can try this: https://github.com/ggml-org/llama.cpp/discussions/21112#discussioncomment-17349591. LMK what is your experience.
+
+===COMMENT by ggerganov at 2026-06-18T09:38:28Z===
+For Qwen3.6-27B users, I found that loading the MTP layers in `Q4_0` provides a nice speed-up. Here is my current config for the RTX 5090:
+
+https://huggingface.co/ggerganov/presets/blob/main/preset-32GB.ini#L92-L95
+
+--REPLY by gelim at 2026-07-05T20:30:22Z--
+Is there is any advantage using the dedicated drafter over unsloth/Qwen3.6-27B-MTP-GGUF ?
+
+===COMMENT by ggerganov at 2026-06-18T09:38:28Z===
+For Qwen3.6-27B users, I found that loading the MTP layers in `Q4_0` provides a nice speed-up. Here is my current config for the RTX 5090:
+
+https://huggingface.co/ggerganov/presets/blob/main/preset-32GB.ini#L92-L95
+
+--REPLY by ggerganov at 2026-07-06T11:55:58Z--
+The advantages are:
+
+- Can choose the quantization level of the drafter
+- Can offload the drafter to a specific device regardless of which device is used by the target model (for multi-GPU setups)
+
+===COMMENT by ggerganov at 2026-06-18T09:38:28Z===
+For Qwen3.6-27B users, I found that loading the MTP layers in `Q4_0` provides a nice speed-up. Here is my current config for the RTX 5090:
+
+https://huggingface.co/ggerganov/presets/blob/main/preset-32GB.ini#L92-L95
+
+--REPLY by gelim at 2026-07-06T20:01:57Z--
+Thanks, by looking at this again with the external ggml-org Q4_0 drafter on a Qwen 3.6-27B Q8_0 I get indeed better results than unsloth MTP model in Q8_0.
+Combining that with ngram-mod is the cherry on the cake.
+
+===COMMENT by ggerganov at 2026-06-18T09:38:28Z===
+For Qwen3.6-27B users, I found that loading the MTP layers in `Q4_0` provides a nice speed-up. Here is my current config for the RTX 5090:
+
+https://huggingface.co/ggerganov/presets/blob/main/preset-32GB.ini#L92-L95
+
+--REPLY by cristianadam at 2026-07-07T10:19:31Z--
+I was running:
+
+```
+llama-server \
+    -hf ggml-org/Qwen3.6-35B-A3B-GGUF:Q8_0 \
+    --spec-draft-hf ggml-org/Qwen3.6-35B-A3B-GGUF \
+    --spec-draft-model mtp-Qwen3.6-35B-A3B-Q4_0.gguf \
+    --spec-type draft-mtp --spec-draft-n-max 3 \
+    --temp 0.6 \
+    --top-p 0.95 \
+    --top-k 20 \
+    --presence-penalty 1.0 \
+    --min-p 0.00 \
+    --jinja --chat-template-file qwen-3.6_chat_template.jinja \
+    --reasoning-format deepseek \
+    --chat-template-kwargs '{"preserve_thinking":true}'
+ ```
+With [Qwen-Fixed-Chat-Templates](https://huggingface.co/froggeric/Qwen-Fixed-Chat-Templates) and noticed:
+
+```
+./llama-server-qwen-3.6-35b-a3b-mtp.sh
+Downloading mmproj-Qwen3.6-35B-A3B-Q8_0.gguf ────                     19%
+Downloading mtp-Qwen3.6-35B-A3B-Q4_0.gguf ──────────╴                 41%
+Downloading mtp-Qwen3.6-35B-A3B-Q8_0.gguf ────╴                       17%
+Downloading Qwen3.6-35B-A3B-Q8_0.gguf ╴                                3%
+```
+No idea why both `mtp-Qwen3.6-35B-A3B-Q4_0.gguf` and `mtp-Qwen3.6-35B-A3B-Q8_0.gguf` are being downloaded.
+
+===COMMENT by ggerganov at 2026-06-18T09:38:28Z===
+For Qwen3.6-27B users, I found that loading the MTP layers in `Q4_0` provides a nice speed-up. Here is my current config for the RTX 5090:
+
+https://huggingface.co/ggerganov/presets/blob/main/preset-32GB.ini#L92-L95
+
+--REPLY by ggerganov at 2026-07-08T15:06:22Z--
+> No idea why both mtp-Qwen3.6-35B-A3B-Q4_0.gguf and mtp-Qwen3.6-35B-A3B-Q8_0.gguf are being downloaded.
+
+Hm, that's unexpected. cc @ngxson 
+
+===COMMENT by Enderlook at 2026-07-22T13:03:31Z===
+**CPU:** AMD Ryzen 7 5800XT 8-Core
+**RAM:** 80 GB DDR4 2400 MT/s (+ 20 GB of pagination)
+**GPU:** NVIDIA GeForce RTX 3060 Ti 8 GB dedicated RAM (+40 shared RAM)
+
+I run in a Docker the image `ghcr.io/ggml-org/llama.cpp:full-cuda` with the command `--server`. The environment variables I use are:
+```
+LLAMA_ARG_MODELS_MAX=1
+LLAMA_ARG_N_PARALLEL=1
+LLAMA_ARG_CTX_SIZE=256144 # It must be at least 64K, which is the minimum used by Hermes Agent.
+LLAMA_ARG_FLASH_ATTN=1
+LLAMA_MMAP=1 # Enable this to decrease performance around ~0.5%, but allows the computer to paginate the model when I don't use it or if my PC happens to be close to run out of memory (rarely), so I think it's worth having.
+LLAMA_ARG_N_GPU_LAYERS=999
+LLAMA_ARG_THREADS=16
+LLAMA_ARG_THREADS_BATCH=16
+LLAMA_ARG_BATCH=2048
+LLAMA_ARG_UBATCH=1024
+LLAMA_ARG_MMPROJ_OFFLOAD=1
+LLAMA_ARG_KV_UNIFIED=1
+```
+Thought Hermes (I use Llama.cpp with Hermes) seems to only recognise 131.1k context. And even if it did more, performance decreases so much as context enlarges that I request a context compression on it.
+
+My model is `Qwen 3.6 35B A3B Q4_K_L`.
+
+I use it as my main model in Hermes Agent for a wide range of different operations:
+- Instruct it to do web research on academic sites about science, or just general topics, and make md file report to satisfy my curiosity.
+- Read PDFs and make a summary of them that can be used to compare different PDFs or merge their info into one, creating LLM Wikis.
+- Throw at it my random thoughts about some creative subject and let it organise an LLM Wiki about it.
+- Generate and manage skills.
+- Inspect code to find bugs and race conditions, or ask questions about something programming-related. I'm not very keen on just giving full access to a repo to write on its own, though one day I might request it to explain to me how already existing codebases work.
+- (Plan To, never done yet), give it images and classify them with several tags per image.
+
+I usually don't do these different operations simultaneously, so I wouldn't mind having different configurations for different tasks. For example, if I have to inspect images, I would disable the mmproj offload, as that is against image processing.
+
+Subjectively, the performance starts at `120 t/s` to read and `10 t/s` to write, but as context increases, they decrease to `40 t/s` and `3 t/s`, or even less.
+
+Objectively, I did 3 different `llama-bench` with several options, which I used to fine-tune as best as I could. (The auto-fit params mode provided me with worse performance.
+
+```md
+Model		qwen35moe 35B.A3B Q4_K - Medium
+Size		21.10 GiB
+Params		35.51 B
+Backend		CUDA
+
+| ngl |  n_cpu_moe | threads | n_batch |  fa | mmap |            test |                  t/s |
+| --: | ---------: | ------: | ------: | --: | ---: | --------------: | -------------------: |
+| 999 |          0 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         73.18 ± 6.36 |
+| 999 |          0 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |         11.08 ± 0.78 |
+| 999 |          0 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.60 ± 0.01 |
+| 999 |          0 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |        501.31 ± 1.96 |
+| 999 |          0 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |         11.08 ± 0.82 |
+| 999 |          0 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.61 ± 0.00 |
+| 999 |          0 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         70.39 ± 8.13 |
+| 999 |          0 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          7.51 ± 0.39 |
+| 999 |          0 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.59 ± 0.00 |
+| 999 |          0 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        502.03 ± 4.84 |
+| 999 |          0 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |         11.03 ± 0.88 |
+| 999 |          0 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.57 ± 0.01 |
+| 999 |          1 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         72.77 ± 6.86 |
+| 999 |          1 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          6.90 ± 0.37 |
+| 999 |          1 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.82 ± 0.11 |
+| 999 |          1 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |        499.76 ± 3.66 |
+| 999 |          1 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |         11.05 ± 0.67 |
+| 999 |          1 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.88 ± 0.02 |
+| 999 |          1 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         72.90 ± 7.13 |
+| 999 |          1 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.96 ± 0.35 |
+| 999 |          1 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.20 ± 0.18 |
+| 999 |          1 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        482.18 ± 8.53 |
+| 999 |          1 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |         10.24 ± 0.71 |
+| 999 |          1 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         19.63 ± 0.09 |
+|  39 |          0 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         70.10 ± 4.86 |
+|  39 |          0 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          5.70 ± 0.22 |
+|  39 |          0 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         15.84 ± 0.18 |
+|  39 |          0 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |       451.05 ± 98.94 |
+|  39 |          0 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |          8.54 ± 0.59 |
+|  39 |          0 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         16.43 ± 0.06 |
+|  39 |          0 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         70.67 ± 3.07 |
+|  39 |          0 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.19 ± 0.38 |
+|  39 |          0 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.51 ± 0.03 |
+|  39 |          0 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        458.16 ± 3.18 |
+|  39 |          0 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |          8.30 ± 0.60 |
+|  39 |          0 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.49 ± 0.20 |
+|  39 |          1 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         70.72 ± 7.65 |
+|  39 |          1 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          5.75 ± 0.26 |
+|  39 |          1 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         15.96 ± 0.18 |
+|  39 |          1 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |      429.22 ± 144.04 |
+|  39 |          1 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |          8.54 ± 0.59 |
+|  39 |          1 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         16.45 ± 0.06 |
+|  39 |          1 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         68.96 ± 6.92 |
+|  39 |          1 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.20 ± 0.36 |
+|  39 |          1 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.72 ± 0.16 |
+|  39 |          1 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |       417.05 ± 98.41 |
+|  39 |          1 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |          8.67 ± 0.63 |
+|  39 |          1 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.50 ± 0.08 |
+
+
+| ngl | threads | n_batch | n_ubatch |  fa | mmap |            test |                  t/s |
+| --: | ------: | ------: | -------: | --: | ---: | --------------: | -------------------: |
+| 999 |      16 |    2048 |      512 |   1 |    0 |  pp512 @ d32000 |         73.09 ± 4.45 |
+| 999 |      16 |    2048 |      512 |   1 |    0 |  tg128 @ d32000 |         10.96 ± 0.57 |
+| 999 |      16 |    2048 |      512 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.17 ± 0.08 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 |  pp512 @ d32000 |        476.06 ± 1.52 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 |  tg128 @ d32000 |         10.47 ± 0.61 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.46 ± 0.10 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 |  pp512 @ d32000 |        455.33 ± 5.13 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 |  tg128 @ d32000 |          9.98 ± 0.63 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 | pp2048+tg2048 @ d32000 |         19.56 ± 0.09 |
+| 999 |      16 |    4096 |      512 |   1 |    0 |  pp512 @ d32000 |        459.42 ± 4.01 |
+| 999 |      16 |    4096 |      512 |   1 |    0 |  tg128 @ d32000 |         10.37 ± 0.69 |
+| 999 |      16 |    4096 |      512 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.26 ± 0.08 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 |  pp512 @ d32000 |        465.21 ± 2.71 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 |  tg128 @ d32000 |         10.34 ± 0.74 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.01 ± 0.09 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 |  pp512 @ d32000 |        441.30 ± 3.01 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 |  tg128 @ d32000 |          9.17 ± 0.60 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 | pp2048+tg2048 @ d32000 |         17.59 ± 0.07 |
+| 999 |      16 |    2048 |      512 |   1 |    1 |  pp512 @ d32000 |         76.55 ± 7.56 |
+| 999 |      16 |    2048 |      512 |   1 |    1 |  tg128 @ d32000 |          7.45 ± 0.42 |
+| 999 |      16 |    2048 |      512 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.02 ± 0.02 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 |  pp512 @ d32000 |      421.98 ± 134.80 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 |  tg128 @ d32000 |         10.45 ± 0.65 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.12 ± 0.10 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 |  pp512 @ d32000 |        459.47 ± 3.42 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 |  tg128 @ d32000 |          9.83 ± 0.74 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 | pp2048+tg2048 @ d32000 |         19.24 ± 0.08 |
+| 999 |      16 |    4096 |      512 |   1 |    1 |  pp512 @ d32000 |        451.71 ± 9.30 |
+| 999 |      16 |    4096 |      512 |   1 |    1 |  tg128 @ d32000 |         10.49 ± 0.84 |
+| 999 |      16 |    4096 |      512 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.43 ± 0.09 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 |  pp512 @ d32000 |       438.71 ± 87.55 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 |  tg128 @ d32000 |         10.57 ± 0.71 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.38 ± 0.08 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 |  pp512 @ d32000 |        458.29 ± 1.24 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 |  tg128 @ d32000 |          9.38 ± 0.77 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 | pp2048+tg2048 @ d32000 |         18.58 ± 0.09 |
+
+| ngl |  n_cpu_moe | threads | n_ubatch |  fa |            test |                  t/s |
+|:--: | ---------: | ------: | -------: | --: | --------------: | -------------------: |
+| 999 |          0 |      16 |     1024 |   1 |  pp512 @ d32000 |         76.05 ± 5.98 |
+| 999 |          0 |      16 |     1024 |   1 |  tg128 @ d32000 |         10.80 ± 0.65 |
+| 999 |          0 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         20.86 ± 0.10 |
+| 999 |         10 |      16 |     1024 |   1 |  pp512 @ d32000 |         62.54 ± 6.24 |
+| 999 |         10 |      16 |     1024 |   1 |  tg128 @ d32000 |          6.96 ± 0.22 |
+| 999 |         10 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         18.65 ± 0.03 |
+| 999 |         25 |      16 |     1024 |   1 |  pp512 @ d32000 |         60.65 ± 5.05 |
+| 999 |         25 |      16 |     1024 |   1 |  tg128 @ d32000 |          7.77 ± 0.42 |
+| 999 |         25 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         18.96 ± 0.11 |
+| 999 |         50 |      16 |     1024 |   1 |  pp512 @ d32000 |        293.81 ± 5.35 |
+| 999 |         50 |      16 |     1024 |   1 |  tg128 @ d32000 |          8.66 ± 0.61 |
+| 999 |         50 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.87 ± 0.05 |
+| 999 |         99 |      16 |     1024 |   1 |  pp512 @ d32000 |       276.76 ± 66.52 |
+| 999 |         99 |      16 |     1024 |   1 |  tg128 @ d32000 |          9.03 ± 1.07 |
+| 999 |         99 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.99 ± 0.03 |
+| 999 |        100 |      16 |     1024 |   1 |  pp512 @ d32000 |       287.00 ± 13.10 |
+| 999 |        100 |      16 |     1024 |   1 |  tg128 @ d32000 |          9.06 ± 1.31 |
+| 999 |        100 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.92 ± 0.06 |
+```
+
+At the moment, I run a single request at the same time, but I would like if possible to run 2, so while my main request is running, I can still ask minor requests. However, I noticed it decreases the performance significantly in both requests, being less than half. I was wondering if it is possible to run one request in the GPU and the other in the CPU (both sharing the model memory to avoid duplication), since at the moment my CPU is completely free (and any attempt to use it with hybrid in a single request has actually decreased my performance, as you can see in the benchmarks).
+
+Also, I hear it exists something called speculative decoding, I'm not sure if that applies to my model (I hear it's more for dense models). Can I use it? Which model should I use for prediction?
+
+Also, Llama supports quantising the key and value cache, but I have read a lot of mixed comments about it, primarily about increasing hallucinations on longs contexts (which is common in Agents), so I'm not sure if I should use it, when to use it, and how much to use it.
+
+--REPLY by iridium87 at 2026-07-22T13:43:16Z--
+As your context grows the 8GB VRAM are not enough to hold all of it plus the model weights and some gets offloaded to system RAM reason why you get the drop in tks. You can try to quantize your context
+`LLAMA_ARG_CACHE_TYPE_K`
+`LLAMA_ARG_CACHE_TYPE_V`
+The general agreement is Q8 is near lossless, Q4 is fine but larger context suffer more from aggressive quantization and the model might not be able to recall specific details. Tools also suffer more in my experience. Test what works for you.
+Since you are using a MOE model you can also try `LLAMA_ARG_CPU_MOE` which keeps the experts in system RAM.
+
+On running a second request on the CPU, that is actually a cool idea, I should try it. I would just launch another llama server WITHOUT the `LLAMA_ARG_N_GPU_LAYERS` var or set to 0 which would just load everything on RAM. However this means loading the model a second time, I am not aware of mechanism to pipe one requests to the CPU and another to the GPU.
+
+===COMMENT by Enderlook at 2026-07-22T13:03:31Z===
+**CPU:** AMD Ryzen 7 5800XT 8-Core
+**RAM:** 80 GB DDR4 2400 MT/s (+ 20 GB of pagination)
+**GPU:** NVIDIA GeForce RTX 3060 Ti 8 GB dedicated RAM (+40 shared RAM)
+
+I run in a Docker the image `ghcr.io/ggml-org/llama.cpp:full-cuda` with the command `--server`. The environment variables I use are:
+```
+LLAMA_ARG_MODELS_MAX=1
+LLAMA_ARG_N_PARALLEL=1
+LLAMA_ARG_CTX_SIZE=256144 # It must be at least 64K, which is the minimum used by Hermes Agent.
+LLAMA_ARG_FLASH_ATTN=1
+LLAMA_MMAP=1 # Enable this to decrease performance around ~0.5%, but allows the computer to paginate the model when I don't use it or if my PC happens to be close to run out of memory (rarely), so I think it's worth having.
+LLAMA_ARG_N_GPU_LAYERS=999
+LLAMA_ARG_THREADS=16
+LLAMA_ARG_THREADS_BATCH=16
+LLAMA_ARG_BATCH=2048
+LLAMA_ARG_UBATCH=1024
+LLAMA_ARG_MMPROJ_OFFLOAD=1
+LLAMA_ARG_KV_UNIFIED=1
+```
+Thought Hermes (I use Llama.cpp with Hermes) seems to only recognise 131.1k context. And even if it did more, performance decreases so much as context enlarges that I request a context compression on it.
+
+My model is `Qwen 3.6 35B A3B Q4_K_L`.
+
+I use it as my main model in Hermes Agent for a wide range of different operations:
+- Instruct it to do web research on academic sites about science, or just general topics, and make md file report to satisfy my curiosity.
+- Read PDFs and make a summary of them that can be used to compare different PDFs or merge their info into one, creating LLM Wikis.
+- Throw at it my random thoughts about some creative subject and let it organise an LLM Wiki about it.
+- Generate and manage skills.
+- Inspect code to find bugs and race conditions, or ask questions about something programming-related. I'm not very keen on just giving full access to a repo to write on its own, though one day I might request it to explain to me how already existing codebases work.
+- (Plan To, never done yet), give it images and classify them with several tags per image.
+
+I usually don't do these different operations simultaneously, so I wouldn't mind having different configurations for different tasks. For example, if I have to inspect images, I would disable the mmproj offload, as that is against image processing.
+
+Subjectively, the performance starts at `120 t/s` to read and `10 t/s` to write, but as context increases, they decrease to `40 t/s` and `3 t/s`, or even less.
+
+Objectively, I did 3 different `llama-bench` with several options, which I used to fine-tune as best as I could. (The auto-fit params mode provided me with worse performance.
+
+```md
+Model		qwen35moe 35B.A3B Q4_K - Medium
+Size		21.10 GiB
+Params		35.51 B
+Backend		CUDA
+
+| ngl |  n_cpu_moe | threads | n_batch |  fa | mmap |            test |                  t/s |
+| --: | ---------: | ------: | ------: | --: | ---: | --------------: | -------------------: |
+| 999 |          0 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         73.18 ± 6.36 |
+| 999 |          0 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |         11.08 ± 0.78 |
+| 999 |          0 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.60 ± 0.01 |
+| 999 |          0 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |        501.31 ± 1.96 |
+| 999 |          0 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |         11.08 ± 0.82 |
+| 999 |          0 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.61 ± 0.00 |
+| 999 |          0 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         70.39 ± 8.13 |
+| 999 |          0 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          7.51 ± 0.39 |
+| 999 |          0 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.59 ± 0.00 |
+| 999 |          0 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        502.03 ± 4.84 |
+| 999 |          0 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |         11.03 ± 0.88 |
+| 999 |          0 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.57 ± 0.01 |
+| 999 |          1 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         72.77 ± 6.86 |
+| 999 |          1 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          6.90 ± 0.37 |
+| 999 |          1 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.82 ± 0.11 |
+| 999 |          1 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |        499.76 ± 3.66 |
+| 999 |          1 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |         11.05 ± 0.67 |
+| 999 |          1 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.88 ± 0.02 |
+| 999 |          1 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         72.90 ± 7.13 |
+| 999 |          1 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.96 ± 0.35 |
+| 999 |          1 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.20 ± 0.18 |
+| 999 |          1 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        482.18 ± 8.53 |
+| 999 |          1 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |         10.24 ± 0.71 |
+| 999 |          1 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         19.63 ± 0.09 |
+|  39 |          0 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         70.10 ± 4.86 |
+|  39 |          0 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          5.70 ± 0.22 |
+|  39 |          0 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         15.84 ± 0.18 |
+|  39 |          0 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |       451.05 ± 98.94 |
+|  39 |          0 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |          8.54 ± 0.59 |
+|  39 |          0 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         16.43 ± 0.06 |
+|  39 |          0 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         70.67 ± 3.07 |
+|  39 |          0 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.19 ± 0.38 |
+|  39 |          0 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.51 ± 0.03 |
+|  39 |          0 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        458.16 ± 3.18 |
+|  39 |          0 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |          8.30 ± 0.60 |
+|  39 |          0 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.49 ± 0.20 |
+|  39 |          1 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         70.72 ± 7.65 |
+|  39 |          1 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          5.75 ± 0.26 |
+|  39 |          1 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         15.96 ± 0.18 |
+|  39 |          1 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |      429.22 ± 144.04 |
+|  39 |          1 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |          8.54 ± 0.59 |
+|  39 |          1 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         16.45 ± 0.06 |
+|  39 |          1 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         68.96 ± 6.92 |
+|  39 |          1 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.20 ± 0.36 |
+|  39 |          1 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.72 ± 0.16 |
+|  39 |          1 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |       417.05 ± 98.41 |
+|  39 |          1 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |          8.67 ± 0.63 |
+|  39 |          1 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.50 ± 0.08 |
+
+
+| ngl | threads | n_batch | n_ubatch |  fa | mmap |            test |                  t/s |
+| --: | ------: | ------: | -------: | --: | ---: | --------------: | -------------------: |
+| 999 |      16 |    2048 |      512 |   1 |    0 |  pp512 @ d32000 |         73.09 ± 4.45 |
+| 999 |      16 |    2048 |      512 |   1 |    0 |  tg128 @ d32000 |         10.96 ± 0.57 |
+| 999 |      16 |    2048 |      512 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.17 ± 0.08 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 |  pp512 @ d32000 |        476.06 ± 1.52 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 |  tg128 @ d32000 |         10.47 ± 0.61 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.46 ± 0.10 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 |  pp512 @ d32000 |        455.33 ± 5.13 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 |  tg128 @ d32000 |          9.98 ± 0.63 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 | pp2048+tg2048 @ d32000 |         19.56 ± 0.09 |
+| 999 |      16 |    4096 |      512 |   1 |    0 |  pp512 @ d32000 |        459.42 ± 4.01 |
+| 999 |      16 |    4096 |      512 |   1 |    0 |  tg128 @ d32000 |         10.37 ± 0.69 |
+| 999 |      16 |    4096 |      512 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.26 ± 0.08 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 |  pp512 @ d32000 |        465.21 ± 2.71 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 |  tg128 @ d32000 |         10.34 ± 0.74 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.01 ± 0.09 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 |  pp512 @ d32000 |        441.30 ± 3.01 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 |  tg128 @ d32000 |          9.17 ± 0.60 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 | pp2048+tg2048 @ d32000 |         17.59 ± 0.07 |
+| 999 |      16 |    2048 |      512 |   1 |    1 |  pp512 @ d32000 |         76.55 ± 7.56 |
+| 999 |      16 |    2048 |      512 |   1 |    1 |  tg128 @ d32000 |          7.45 ± 0.42 |
+| 999 |      16 |    2048 |      512 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.02 ± 0.02 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 |  pp512 @ d32000 |      421.98 ± 134.80 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 |  tg128 @ d32000 |         10.45 ± 0.65 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.12 ± 0.10 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 |  pp512 @ d32000 |        459.47 ± 3.42 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 |  tg128 @ d32000 |          9.83 ± 0.74 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 | pp2048+tg2048 @ d32000 |         19.24 ± 0.08 |
+| 999 |      16 |    4096 |      512 |   1 |    1 |  pp512 @ d32000 |        451.71 ± 9.30 |
+| 999 |      16 |    4096 |      512 |   1 |    1 |  tg128 @ d32000 |         10.49 ± 0.84 |
+| 999 |      16 |    4096 |      512 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.43 ± 0.09 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 |  pp512 @ d32000 |       438.71 ± 87.55 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 |  tg128 @ d32000 |         10.57 ± 0.71 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.38 ± 0.08 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 |  pp512 @ d32000 |        458.29 ± 1.24 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 |  tg128 @ d32000 |          9.38 ± 0.77 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 | pp2048+tg2048 @ d32000 |         18.58 ± 0.09 |
+
+| ngl |  n_cpu_moe | threads | n_ubatch |  fa |            test |                  t/s |
+|:--: | ---------: | ------: | -------: | --: | --------------: | -------------------: |
+| 999 |          0 |      16 |     1024 |   1 |  pp512 @ d32000 |         76.05 ± 5.98 |
+| 999 |          0 |      16 |     1024 |   1 |  tg128 @ d32000 |         10.80 ± 0.65 |
+| 999 |          0 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         20.86 ± 0.10 |
+| 999 |         10 |      16 |     1024 |   1 |  pp512 @ d32000 |         62.54 ± 6.24 |
+| 999 |         10 |      16 |     1024 |   1 |  tg128 @ d32000 |          6.96 ± 0.22 |
+| 999 |         10 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         18.65 ± 0.03 |
+| 999 |         25 |      16 |     1024 |   1 |  pp512 @ d32000 |         60.65 ± 5.05 |
+| 999 |         25 |      16 |     1024 |   1 |  tg128 @ d32000 |          7.77 ± 0.42 |
+| 999 |         25 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         18.96 ± 0.11 |
+| 999 |         50 |      16 |     1024 |   1 |  pp512 @ d32000 |        293.81 ± 5.35 |
+| 999 |         50 |      16 |     1024 |   1 |  tg128 @ d32000 |          8.66 ± 0.61 |
+| 999 |         50 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.87 ± 0.05 |
+| 999 |         99 |      16 |     1024 |   1 |  pp512 @ d32000 |       276.76 ± 66.52 |
+| 999 |         99 |      16 |     1024 |   1 |  tg128 @ d32000 |          9.03 ± 1.07 |
+| 999 |         99 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.99 ± 0.03 |
+| 999 |        100 |      16 |     1024 |   1 |  pp512 @ d32000 |       287.00 ± 13.10 |
+| 999 |        100 |      16 |     1024 |   1 |  tg128 @ d32000 |          9.06 ± 1.31 |
+| 999 |        100 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.92 ± 0.06 |
+```
+
+At the moment, I run a single request at the same time, but I would like if possible to run 2, so while my main request is running, I can still ask minor requests. However, I noticed it decreases the performance significantly in both requests, being less than half. I was wondering if it is possible to run one request in the GPU and the other in the CPU (both sharing the model memory to avoid duplication), since at the moment my CPU is completely free (and any attempt to use it with hybrid in a single request has actually decreased my performance, as you can see in the benchmarks).
+
+Also, I hear it exists something called speculative decoding, I'm not sure if that applies to my model (I hear it's more for dense models). Can I use it? Which model should I use for prediction?
+
+Also, Llama supports quantising the key and value cache, but I have read a lot of mixed comments about it, primarily about increasing hallucinations on longs contexts (which is common in Agents), so I'm not sure if I should use it, when to use it, and how much to use it.
+
+--REPLY by Enderlook at 2026-07-22T18:28:38Z--
+@iridium8 Thanks for your response!
+
+- Didn't understand from your message if Q8 is acceptable or not for tools. Also, why is possible to specify the quantization of keys and values separately, is there any situation in which you would want them in different sizes?
+- If `LLAMA_ARG_CPU_MOE` works similarly to `n_cpu_moe` from `llama-bench`, then I already found that decreases the tokens per second. Or it's a different thing?
+- The problem of launching a second llama server is that Hermes can only communicate with one llama server at the same time (only accepts a single openapi url entry), and I always use llama from Hermes. So I would need a way that remains compatible with Hermes agent / single-openapi-url.
+
+===COMMENT by Enderlook at 2026-07-22T13:03:31Z===
+**CPU:** AMD Ryzen 7 5800XT 8-Core
+**RAM:** 80 GB DDR4 2400 MT/s (+ 20 GB of pagination)
+**GPU:** NVIDIA GeForce RTX 3060 Ti 8 GB dedicated RAM (+40 shared RAM)
+
+I run in a Docker the image `ghcr.io/ggml-org/llama.cpp:full-cuda` with the command `--server`. The environment variables I use are:
+```
+LLAMA_ARG_MODELS_MAX=1
+LLAMA_ARG_N_PARALLEL=1
+LLAMA_ARG_CTX_SIZE=256144 # It must be at least 64K, which is the minimum used by Hermes Agent.
+LLAMA_ARG_FLASH_ATTN=1
+LLAMA_MMAP=1 # Enable this to decrease performance around ~0.5%, but allows the computer to paginate the model when I don't use it or if my PC happens to be close to run out of memory (rarely), so I think it's worth having.
+LLAMA_ARG_N_GPU_LAYERS=999
+LLAMA_ARG_THREADS=16
+LLAMA_ARG_THREADS_BATCH=16
+LLAMA_ARG_BATCH=2048
+LLAMA_ARG_UBATCH=1024
+LLAMA_ARG_MMPROJ_OFFLOAD=1
+LLAMA_ARG_KV_UNIFIED=1
+```
+Thought Hermes (I use Llama.cpp with Hermes) seems to only recognise 131.1k context. And even if it did more, performance decreases so much as context enlarges that I request a context compression on it.
+
+My model is `Qwen 3.6 35B A3B Q4_K_L`.
+
+I use it as my main model in Hermes Agent for a wide range of different operations:
+- Instruct it to do web research on academic sites about science, or just general topics, and make md file report to satisfy my curiosity.
+- Read PDFs and make a summary of them that can be used to compare different PDFs or merge their info into one, creating LLM Wikis.
+- Throw at it my random thoughts about some creative subject and let it organise an LLM Wiki about it.
+- Generate and manage skills.
+- Inspect code to find bugs and race conditions, or ask questions about something programming-related. I'm not very keen on just giving full access to a repo to write on its own, though one day I might request it to explain to me how already existing codebases work.
+- (Plan To, never done yet), give it images and classify them with several tags per image.
+
+I usually don't do these different operations simultaneously, so I wouldn't mind having different configurations for different tasks. For example, if I have to inspect images, I would disable the mmproj offload, as that is against image processing.
+
+Subjectively, the performance starts at `120 t/s` to read and `10 t/s` to write, but as context increases, they decrease to `40 t/s` and `3 t/s`, or even less.
+
+Objectively, I did 3 different `llama-bench` with several options, which I used to fine-tune as best as I could. (The auto-fit params mode provided me with worse performance.
+
+```md
+Model		qwen35moe 35B.A3B Q4_K - Medium
+Size		21.10 GiB
+Params		35.51 B
+Backend		CUDA
+
+| ngl |  n_cpu_moe | threads | n_batch |  fa | mmap |            test |                  t/s |
+| --: | ---------: | ------: | ------: | --: | ---: | --------------: | -------------------: |
+| 999 |          0 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         73.18 ± 6.36 |
+| 999 |          0 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |         11.08 ± 0.78 |
+| 999 |          0 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.60 ± 0.01 |
+| 999 |          0 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |        501.31 ± 1.96 |
+| 999 |          0 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |         11.08 ± 0.82 |
+| 999 |          0 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.61 ± 0.00 |
+| 999 |          0 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         70.39 ± 8.13 |
+| 999 |          0 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          7.51 ± 0.39 |
+| 999 |          0 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.59 ± 0.00 |
+| 999 |          0 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        502.03 ± 4.84 |
+| 999 |          0 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |         11.03 ± 0.88 |
+| 999 |          0 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.57 ± 0.01 |
+| 999 |          1 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         72.77 ± 6.86 |
+| 999 |          1 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          6.90 ± 0.37 |
+| 999 |          1 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.82 ± 0.11 |
+| 999 |          1 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |        499.76 ± 3.66 |
+| 999 |          1 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |         11.05 ± 0.67 |
+| 999 |          1 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.88 ± 0.02 |
+| 999 |          1 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         72.90 ± 7.13 |
+| 999 |          1 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.96 ± 0.35 |
+| 999 |          1 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.20 ± 0.18 |
+| 999 |          1 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        482.18 ± 8.53 |
+| 999 |          1 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |         10.24 ± 0.71 |
+| 999 |          1 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         19.63 ± 0.09 |
+|  39 |          0 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         70.10 ± 4.86 |
+|  39 |          0 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          5.70 ± 0.22 |
+|  39 |          0 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         15.84 ± 0.18 |
+|  39 |          0 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |       451.05 ± 98.94 |
+|  39 |          0 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |          8.54 ± 0.59 |
+|  39 |          0 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         16.43 ± 0.06 |
+|  39 |          0 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         70.67 ± 3.07 |
+|  39 |          0 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.19 ± 0.38 |
+|  39 |          0 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.51 ± 0.03 |
+|  39 |          0 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        458.16 ± 3.18 |
+|  39 |          0 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |          8.30 ± 0.60 |
+|  39 |          0 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.49 ± 0.20 |
+|  39 |          1 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         70.72 ± 7.65 |
+|  39 |          1 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          5.75 ± 0.26 |
+|  39 |          1 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         15.96 ± 0.18 |
+|  39 |          1 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |      429.22 ± 144.04 |
+|  39 |          1 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |          8.54 ± 0.59 |
+|  39 |          1 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         16.45 ± 0.06 |
+|  39 |          1 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         68.96 ± 6.92 |
+|  39 |          1 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.20 ± 0.36 |
+|  39 |          1 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.72 ± 0.16 |
+|  39 |          1 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |       417.05 ± 98.41 |
+|  39 |          1 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |          8.67 ± 0.63 |
+|  39 |          1 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.50 ± 0.08 |
+
+
+| ngl | threads | n_batch | n_ubatch |  fa | mmap |            test |                  t/s |
+| --: | ------: | ------: | -------: | --: | ---: | --------------: | -------------------: |
+| 999 |      16 |    2048 |      512 |   1 |    0 |  pp512 @ d32000 |         73.09 ± 4.45 |
+| 999 |      16 |    2048 |      512 |   1 |    0 |  tg128 @ d32000 |         10.96 ± 0.57 |
+| 999 |      16 |    2048 |      512 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.17 ± 0.08 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 |  pp512 @ d32000 |        476.06 ± 1.52 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 |  tg128 @ d32000 |         10.47 ± 0.61 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.46 ± 0.10 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 |  pp512 @ d32000 |        455.33 ± 5.13 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 |  tg128 @ d32000 |          9.98 ± 0.63 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 | pp2048+tg2048 @ d32000 |         19.56 ± 0.09 |
+| 999 |      16 |    4096 |      512 |   1 |    0 |  pp512 @ d32000 |        459.42 ± 4.01 |
+| 999 |      16 |    4096 |      512 |   1 |    0 |  tg128 @ d32000 |         10.37 ± 0.69 |
+| 999 |      16 |    4096 |      512 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.26 ± 0.08 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 |  pp512 @ d32000 |        465.21 ± 2.71 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 |  tg128 @ d32000 |         10.34 ± 0.74 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.01 ± 0.09 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 |  pp512 @ d32000 |        441.30 ± 3.01 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 |  tg128 @ d32000 |          9.17 ± 0.60 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 | pp2048+tg2048 @ d32000 |         17.59 ± 0.07 |
+| 999 |      16 |    2048 |      512 |   1 |    1 |  pp512 @ d32000 |         76.55 ± 7.56 |
+| 999 |      16 |    2048 |      512 |   1 |    1 |  tg128 @ d32000 |          7.45 ± 0.42 |
+| 999 |      16 |    2048 |      512 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.02 ± 0.02 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 |  pp512 @ d32000 |      421.98 ± 134.80 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 |  tg128 @ d32000 |         10.45 ± 0.65 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.12 ± 0.10 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 |  pp512 @ d32000 |        459.47 ± 3.42 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 |  tg128 @ d32000 |          9.83 ± 0.74 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 | pp2048+tg2048 @ d32000 |         19.24 ± 0.08 |
+| 999 |      16 |    4096 |      512 |   1 |    1 |  pp512 @ d32000 |        451.71 ± 9.30 |
+| 999 |      16 |    4096 |      512 |   1 |    1 |  tg128 @ d32000 |         10.49 ± 0.84 |
+| 999 |      16 |    4096 |      512 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.43 ± 0.09 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 |  pp512 @ d32000 |       438.71 ± 87.55 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 |  tg128 @ d32000 |         10.57 ± 0.71 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.38 ± 0.08 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 |  pp512 @ d32000 |        458.29 ± 1.24 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 |  tg128 @ d32000 |          9.38 ± 0.77 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 | pp2048+tg2048 @ d32000 |         18.58 ± 0.09 |
+
+| ngl |  n_cpu_moe | threads | n_ubatch |  fa |            test |                  t/s |
+|:--: | ---------: | ------: | -------: | --: | --------------: | -------------------: |
+| 999 |          0 |      16 |     1024 |   1 |  pp512 @ d32000 |         76.05 ± 5.98 |
+| 999 |          0 |      16 |     1024 |   1 |  tg128 @ d32000 |         10.80 ± 0.65 |
+| 999 |          0 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         20.86 ± 0.10 |
+| 999 |         10 |      16 |     1024 |   1 |  pp512 @ d32000 |         62.54 ± 6.24 |
+| 999 |         10 |      16 |     1024 |   1 |  tg128 @ d32000 |          6.96 ± 0.22 |
+| 999 |         10 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         18.65 ± 0.03 |
+| 999 |         25 |      16 |     1024 |   1 |  pp512 @ d32000 |         60.65 ± 5.05 |
+| 999 |         25 |      16 |     1024 |   1 |  tg128 @ d32000 |          7.77 ± 0.42 |
+| 999 |         25 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         18.96 ± 0.11 |
+| 999 |         50 |      16 |     1024 |   1 |  pp512 @ d32000 |        293.81 ± 5.35 |
+| 999 |         50 |      16 |     1024 |   1 |  tg128 @ d32000 |          8.66 ± 0.61 |
+| 999 |         50 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.87 ± 0.05 |
+| 999 |         99 |      16 |     1024 |   1 |  pp512 @ d32000 |       276.76 ± 66.52 |
+| 999 |         99 |      16 |     1024 |   1 |  tg128 @ d32000 |          9.03 ± 1.07 |
+| 999 |         99 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.99 ± 0.03 |
+| 999 |        100 |      16 |     1024 |   1 |  pp512 @ d32000 |       287.00 ± 13.10 |
+| 999 |        100 |      16 |     1024 |   1 |  tg128 @ d32000 |          9.06 ± 1.31 |
+| 999 |        100 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.92 ± 0.06 |
+```
+
+At the moment, I run a single request at the same time, but I would like if possible to run 2, so while my main request is running, I can still ask minor requests. However, I noticed it decreases the performance significantly in both requests, being less than half. I was wondering if it is possible to run one request in the GPU and the other in the CPU (both sharing the model memory to avoid duplication), since at the moment my CPU is completely free (and any attempt to use it with hybrid in a single request has actually decreased my performance, as you can see in the benchmarks).
+
+Also, I hear it exists something called speculative decoding, I'm not sure if that applies to my model (I hear it's more for dense models). Can I use it? Which model should I use for prediction?
+
+Also, Llama supports quantising the key and value cache, but I have read a lot of mixed comments about it, primarily about increasing hallucinations on longs contexts (which is common in Agents), so I'm not sure if I should use it, when to use it, and how much to use it.
+
+--REPLY by d-shehu at 2026-07-22T19:03:17Z--
+@Enderlook experiment with llama.cpp's **router mode** or llama-swap either of which allow you to use 2 models at once.  If you just want to use 1 model then experiment with --parallel argument in llama.cpp. This will reduce context to 1/N where N is the number of parallel requests. But you can take a look at unified kv cache to share the cache across multiple requests.
+
+I've not tested it but you can add multiple agents to Hermes. See this guide:
+
+https://hermes-agent.nousresearch.com/docs/user-guide/profiles
+
+And auxiliary models for offloading tasks which helps with throughput:
+
+https://hermes-agent.nousresearch.com/docs/user-guide/configuring-models
+
+Note: llama-swap is useful if you want to mix and match llama.cpp instances running on different machines or if you wanted to added a different inference engine. In essence it's a unified endpoint.
+
+===COMMENT by Enderlook at 2026-07-22T13:03:31Z===
+**CPU:** AMD Ryzen 7 5800XT 8-Core
+**RAM:** 80 GB DDR4 2400 MT/s (+ 20 GB of pagination)
+**GPU:** NVIDIA GeForce RTX 3060 Ti 8 GB dedicated RAM (+40 shared RAM)
+
+I run in a Docker the image `ghcr.io/ggml-org/llama.cpp:full-cuda` with the command `--server`. The environment variables I use are:
+```
+LLAMA_ARG_MODELS_MAX=1
+LLAMA_ARG_N_PARALLEL=1
+LLAMA_ARG_CTX_SIZE=256144 # It must be at least 64K, which is the minimum used by Hermes Agent.
+LLAMA_ARG_FLASH_ATTN=1
+LLAMA_MMAP=1 # Enable this to decrease performance around ~0.5%, but allows the computer to paginate the model when I don't use it or if my PC happens to be close to run out of memory (rarely), so I think it's worth having.
+LLAMA_ARG_N_GPU_LAYERS=999
+LLAMA_ARG_THREADS=16
+LLAMA_ARG_THREADS_BATCH=16
+LLAMA_ARG_BATCH=2048
+LLAMA_ARG_UBATCH=1024
+LLAMA_ARG_MMPROJ_OFFLOAD=1
+LLAMA_ARG_KV_UNIFIED=1
+```
+Thought Hermes (I use Llama.cpp with Hermes) seems to only recognise 131.1k context. And even if it did more, performance decreases so much as context enlarges that I request a context compression on it.
+
+My model is `Qwen 3.6 35B A3B Q4_K_L`.
+
+I use it as my main model in Hermes Agent for a wide range of different operations:
+- Instruct it to do web research on academic sites about science, or just general topics, and make md file report to satisfy my curiosity.
+- Read PDFs and make a summary of them that can be used to compare different PDFs or merge their info into one, creating LLM Wikis.
+- Throw at it my random thoughts about some creative subject and let it organise an LLM Wiki about it.
+- Generate and manage skills.
+- Inspect code to find bugs and race conditions, or ask questions about something programming-related. I'm not very keen on just giving full access to a repo to write on its own, though one day I might request it to explain to me how already existing codebases work.
+- (Plan To, never done yet), give it images and classify them with several tags per image.
+
+I usually don't do these different operations simultaneously, so I wouldn't mind having different configurations for different tasks. For example, if I have to inspect images, I would disable the mmproj offload, as that is against image processing.
+
+Subjectively, the performance starts at `120 t/s` to read and `10 t/s` to write, but as context increases, they decrease to `40 t/s` and `3 t/s`, or even less.
+
+Objectively, I did 3 different `llama-bench` with several options, which I used to fine-tune as best as I could. (The auto-fit params mode provided me with worse performance.
+
+```md
+Model		qwen35moe 35B.A3B Q4_K - Medium
+Size		21.10 GiB
+Params		35.51 B
+Backend		CUDA
+
+| ngl |  n_cpu_moe | threads | n_batch |  fa | mmap |            test |                  t/s |
+| --: | ---------: | ------: | ------: | --: | ---: | --------------: | -------------------: |
+| 999 |          0 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         73.18 ± 6.36 |
+| 999 |          0 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |         11.08 ± 0.78 |
+| 999 |          0 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.60 ± 0.01 |
+| 999 |          0 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |        501.31 ± 1.96 |
+| 999 |          0 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |         11.08 ± 0.82 |
+| 999 |          0 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.61 ± 0.00 |
+| 999 |          0 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         70.39 ± 8.13 |
+| 999 |          0 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          7.51 ± 0.39 |
+| 999 |          0 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.59 ± 0.00 |
+| 999 |          0 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        502.03 ± 4.84 |
+| 999 |          0 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |         11.03 ± 0.88 |
+| 999 |          0 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.57 ± 0.01 |
+| 999 |          1 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         72.77 ± 6.86 |
+| 999 |          1 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          6.90 ± 0.37 |
+| 999 |          1 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.82 ± 0.11 |
+| 999 |          1 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |        499.76 ± 3.66 |
+| 999 |          1 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |         11.05 ± 0.67 |
+| 999 |          1 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.88 ± 0.02 |
+| 999 |          1 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         72.90 ± 7.13 |
+| 999 |          1 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.96 ± 0.35 |
+| 999 |          1 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.20 ± 0.18 |
+| 999 |          1 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        482.18 ± 8.53 |
+| 999 |          1 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |         10.24 ± 0.71 |
+| 999 |          1 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         19.63 ± 0.09 |
+|  39 |          0 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         70.10 ± 4.86 |
+|  39 |          0 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          5.70 ± 0.22 |
+|  39 |          0 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         15.84 ± 0.18 |
+|  39 |          0 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |       451.05 ± 98.94 |
+|  39 |          0 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |          8.54 ± 0.59 |
+|  39 |          0 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         16.43 ± 0.06 |
+|  39 |          0 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         70.67 ± 3.07 |
+|  39 |          0 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.19 ± 0.38 |
+|  39 |          0 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.51 ± 0.03 |
+|  39 |          0 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        458.16 ± 3.18 |
+|  39 |          0 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |          8.30 ± 0.60 |
+|  39 |          0 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.49 ± 0.20 |
+|  39 |          1 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         70.72 ± 7.65 |
+|  39 |          1 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          5.75 ± 0.26 |
+|  39 |          1 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         15.96 ± 0.18 |
+|  39 |          1 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |      429.22 ± 144.04 |
+|  39 |          1 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |          8.54 ± 0.59 |
+|  39 |          1 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         16.45 ± 0.06 |
+|  39 |          1 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         68.96 ± 6.92 |
+|  39 |          1 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.20 ± 0.36 |
+|  39 |          1 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.72 ± 0.16 |
+|  39 |          1 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |       417.05 ± 98.41 |
+|  39 |          1 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |          8.67 ± 0.63 |
+|  39 |          1 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.50 ± 0.08 |
+
+
+| ngl | threads | n_batch | n_ubatch |  fa | mmap |            test |                  t/s |
+| --: | ------: | ------: | -------: | --: | ---: | --------------: | -------------------: |
+| 999 |      16 |    2048 |      512 |   1 |    0 |  pp512 @ d32000 |         73.09 ± 4.45 |
+| 999 |      16 |    2048 |      512 |   1 |    0 |  tg128 @ d32000 |         10.96 ± 0.57 |
+| 999 |      16 |    2048 |      512 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.17 ± 0.08 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 |  pp512 @ d32000 |        476.06 ± 1.52 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 |  tg128 @ d32000 |         10.47 ± 0.61 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.46 ± 0.10 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 |  pp512 @ d32000 |        455.33 ± 5.13 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 |  tg128 @ d32000 |          9.98 ± 0.63 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 | pp2048+tg2048 @ d32000 |         19.56 ± 0.09 |
+| 999 |      16 |    4096 |      512 |   1 |    0 |  pp512 @ d32000 |        459.42 ± 4.01 |
+| 999 |      16 |    4096 |      512 |   1 |    0 |  tg128 @ d32000 |         10.37 ± 0.69 |
+| 999 |      16 |    4096 |      512 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.26 ± 0.08 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 |  pp512 @ d32000 |        465.21 ± 2.71 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 |  tg128 @ d32000 |         10.34 ± 0.74 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.01 ± 0.09 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 |  pp512 @ d32000 |        441.30 ± 3.01 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 |  tg128 @ d32000 |          9.17 ± 0.60 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 | pp2048+tg2048 @ d32000 |         17.59 ± 0.07 |
+| 999 |      16 |    2048 |      512 |   1 |    1 |  pp512 @ d32000 |         76.55 ± 7.56 |
+| 999 |      16 |    2048 |      512 |   1 |    1 |  tg128 @ d32000 |          7.45 ± 0.42 |
+| 999 |      16 |    2048 |      512 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.02 ± 0.02 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 |  pp512 @ d32000 |      421.98 ± 134.80 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 |  tg128 @ d32000 |         10.45 ± 0.65 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.12 ± 0.10 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 |  pp512 @ d32000 |        459.47 ± 3.42 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 |  tg128 @ d32000 |          9.83 ± 0.74 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 | pp2048+tg2048 @ d32000 |         19.24 ± 0.08 |
+| 999 |      16 |    4096 |      512 |   1 |    1 |  pp512 @ d32000 |        451.71 ± 9.30 |
+| 999 |      16 |    4096 |      512 |   1 |    1 |  tg128 @ d32000 |         10.49 ± 0.84 |
+| 999 |      16 |    4096 |      512 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.43 ± 0.09 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 |  pp512 @ d32000 |       438.71 ± 87.55 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 |  tg128 @ d32000 |         10.57 ± 0.71 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.38 ± 0.08 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 |  pp512 @ d32000 |        458.29 ± 1.24 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 |  tg128 @ d32000 |          9.38 ± 0.77 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 | pp2048+tg2048 @ d32000 |         18.58 ± 0.09 |
+
+| ngl |  n_cpu_moe | threads | n_ubatch |  fa |            test |                  t/s |
+|:--: | ---------: | ------: | -------: | --: | --------------: | -------------------: |
+| 999 |          0 |      16 |     1024 |   1 |  pp512 @ d32000 |         76.05 ± 5.98 |
+| 999 |          0 |      16 |     1024 |   1 |  tg128 @ d32000 |         10.80 ± 0.65 |
+| 999 |          0 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         20.86 ± 0.10 |
+| 999 |         10 |      16 |     1024 |   1 |  pp512 @ d32000 |         62.54 ± 6.24 |
+| 999 |         10 |      16 |     1024 |   1 |  tg128 @ d32000 |          6.96 ± 0.22 |
+| 999 |         10 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         18.65 ± 0.03 |
+| 999 |         25 |      16 |     1024 |   1 |  pp512 @ d32000 |         60.65 ± 5.05 |
+| 999 |         25 |      16 |     1024 |   1 |  tg128 @ d32000 |          7.77 ± 0.42 |
+| 999 |         25 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         18.96 ± 0.11 |
+| 999 |         50 |      16 |     1024 |   1 |  pp512 @ d32000 |        293.81 ± 5.35 |
+| 999 |         50 |      16 |     1024 |   1 |  tg128 @ d32000 |          8.66 ± 0.61 |
+| 999 |         50 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.87 ± 0.05 |
+| 999 |         99 |      16 |     1024 |   1 |  pp512 @ d32000 |       276.76 ± 66.52 |
+| 999 |         99 |      16 |     1024 |   1 |  tg128 @ d32000 |          9.03 ± 1.07 |
+| 999 |         99 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.99 ± 0.03 |
+| 999 |        100 |      16 |     1024 |   1 |  pp512 @ d32000 |       287.00 ± 13.10 |
+| 999 |        100 |      16 |     1024 |   1 |  tg128 @ d32000 |          9.06 ± 1.31 |
+| 999 |        100 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.92 ± 0.06 |
+```
+
+At the moment, I run a single request at the same time, but I would like if possible to run 2, so while my main request is running, I can still ask minor requests. However, I noticed it decreases the performance significantly in both requests, being less than half. I was wondering if it is possible to run one request in the GPU and the other in the CPU (both sharing the model memory to avoid duplication), since at the moment my CPU is completely free (and any attempt to use it with hybrid in a single request has actually decreased my performance, as you can see in the benchmarks).
+
+Also, I hear it exists something called speculative decoding, I'm not sure if that applies to my model (I hear it's more for dense models). Can I use it? Which model should I use for prediction?
+
+Also, Llama supports quantising the key and value cache, but I have read a lot of mixed comments about it, primarily about increasing hallucinations on longs contexts (which is common in Agents), so I'm not sure if I should use it, when to use it, and how much to use it.
+
+--REPLY by Enderlook at 2026-07-24T12:34:05Z--
+@d-shehu I already experimented with the `--parallel` argument as I said before, the problem with it is that I noticed when doing parallel=2, both requests run at less than half the speed, which means there is quite an overhead there. Also, both attempt to run on the GPU, but I would like if possible, to have one in the GPU and the other in the CPU.
+What Hermes allows with profiles is that each one use a different model, but all these models must come from the same openapiurl (same llama server). So it's not very useful in my case.
+Didn't understand much what is llama-swap, but if I understood correctly, is to change with ease the current running model. I intend to run both requests with the same model, so it's not what I'm looking for, sadly.
+
+===COMMENT by Enderlook at 2026-07-22T13:03:31Z===
+**CPU:** AMD Ryzen 7 5800XT 8-Core
+**RAM:** 80 GB DDR4 2400 MT/s (+ 20 GB of pagination)
+**GPU:** NVIDIA GeForce RTX 3060 Ti 8 GB dedicated RAM (+40 shared RAM)
+
+I run in a Docker the image `ghcr.io/ggml-org/llama.cpp:full-cuda` with the command `--server`. The environment variables I use are:
+```
+LLAMA_ARG_MODELS_MAX=1
+LLAMA_ARG_N_PARALLEL=1
+LLAMA_ARG_CTX_SIZE=256144 # It must be at least 64K, which is the minimum used by Hermes Agent.
+LLAMA_ARG_FLASH_ATTN=1
+LLAMA_MMAP=1 # Enable this to decrease performance around ~0.5%, but allows the computer to paginate the model when I don't use it or if my PC happens to be close to run out of memory (rarely), so I think it's worth having.
+LLAMA_ARG_N_GPU_LAYERS=999
+LLAMA_ARG_THREADS=16
+LLAMA_ARG_THREADS_BATCH=16
+LLAMA_ARG_BATCH=2048
+LLAMA_ARG_UBATCH=1024
+LLAMA_ARG_MMPROJ_OFFLOAD=1
+LLAMA_ARG_KV_UNIFIED=1
+```
+Thought Hermes (I use Llama.cpp with Hermes) seems to only recognise 131.1k context. And even if it did more, performance decreases so much as context enlarges that I request a context compression on it.
+
+My model is `Qwen 3.6 35B A3B Q4_K_L`.
+
+I use it as my main model in Hermes Agent for a wide range of different operations:
+- Instruct it to do web research on academic sites about science, or just general topics, and make md file report to satisfy my curiosity.
+- Read PDFs and make a summary of them that can be used to compare different PDFs or merge their info into one, creating LLM Wikis.
+- Throw at it my random thoughts about some creative subject and let it organise an LLM Wiki about it.
+- Generate and manage skills.
+- Inspect code to find bugs and race conditions, or ask questions about something programming-related. I'm not very keen on just giving full access to a repo to write on its own, though one day I might request it to explain to me how already existing codebases work.
+- (Plan To, never done yet), give it images and classify them with several tags per image.
+
+I usually don't do these different operations simultaneously, so I wouldn't mind having different configurations for different tasks. For example, if I have to inspect images, I would disable the mmproj offload, as that is against image processing.
+
+Subjectively, the performance starts at `120 t/s` to read and `10 t/s` to write, but as context increases, they decrease to `40 t/s` and `3 t/s`, or even less.
+
+Objectively, I did 3 different `llama-bench` with several options, which I used to fine-tune as best as I could. (The auto-fit params mode provided me with worse performance.
+
+```md
+Model		qwen35moe 35B.A3B Q4_K - Medium
+Size		21.10 GiB
+Params		35.51 B
+Backend		CUDA
+
+| ngl |  n_cpu_moe | threads | n_batch |  fa | mmap |            test |                  t/s |
+| --: | ---------: | ------: | ------: | --: | ---: | --------------: | -------------------: |
+| 999 |          0 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         73.18 ± 6.36 |
+| 999 |          0 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |         11.08 ± 0.78 |
+| 999 |          0 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.60 ± 0.01 |
+| 999 |          0 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |        501.31 ± 1.96 |
+| 999 |          0 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |         11.08 ± 0.82 |
+| 999 |          0 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.61 ± 0.00 |
+| 999 |          0 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         70.39 ± 8.13 |
+| 999 |          0 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          7.51 ± 0.39 |
+| 999 |          0 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.59 ± 0.00 |
+| 999 |          0 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        502.03 ± 4.84 |
+| 999 |          0 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |         11.03 ± 0.88 |
+| 999 |          0 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.57 ± 0.01 |
+| 999 |          1 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         72.77 ± 6.86 |
+| 999 |          1 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          6.90 ± 0.37 |
+| 999 |          1 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.82 ± 0.11 |
+| 999 |          1 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |        499.76 ± 3.66 |
+| 999 |          1 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |         11.05 ± 0.67 |
+| 999 |          1 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.88 ± 0.02 |
+| 999 |          1 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         72.90 ± 7.13 |
+| 999 |          1 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.96 ± 0.35 |
+| 999 |          1 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.20 ± 0.18 |
+| 999 |          1 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        482.18 ± 8.53 |
+| 999 |          1 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |         10.24 ± 0.71 |
+| 999 |          1 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         19.63 ± 0.09 |
+|  39 |          0 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         70.10 ± 4.86 |
+|  39 |          0 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          5.70 ± 0.22 |
+|  39 |          0 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         15.84 ± 0.18 |
+|  39 |          0 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |       451.05 ± 98.94 |
+|  39 |          0 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |          8.54 ± 0.59 |
+|  39 |          0 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         16.43 ± 0.06 |
+|  39 |          0 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         70.67 ± 3.07 |
+|  39 |          0 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.19 ± 0.38 |
+|  39 |          0 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.51 ± 0.03 |
+|  39 |          0 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |        458.16 ± 3.18 |
+|  39 |          0 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |          8.30 ± 0.60 |
+|  39 |          0 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.49 ± 0.20 |
+|  39 |          1 |      16 |    1024 |   1 |    0 |  pp512 @ d32000 |         70.72 ± 7.65 |
+|  39 |          1 |      16 |    1024 |   1 |    0 |  tg128 @ d32000 |          5.75 ± 0.26 |
+|  39 |          1 |      16 |    1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         15.96 ± 0.18 |
+|  39 |          1 |      16 |    2048 |   1 |    0 |  pp512 @ d32000 |      429.22 ± 144.04 |
+|  39 |          1 |      16 |    2048 |   1 |    0 |  tg128 @ d32000 |          8.54 ± 0.59 |
+|  39 |          1 |      16 |    2048 |   1 |    0 | pp2048+tg2048 @ d32000 |         16.45 ± 0.06 |
+|  39 |          1 |      16 |    1024 |   1 |    1 |  pp512 @ d32000 |         68.96 ± 6.92 |
+|  39 |          1 |      16 |    1024 |   1 |    1 |  tg128 @ d32000 |          6.20 ± 0.36 |
+|  39 |          1 |      16 |    1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.72 ± 0.16 |
+|  39 |          1 |      16 |    2048 |   1 |    1 |  pp512 @ d32000 |       417.05 ± 98.41 |
+|  39 |          1 |      16 |    2048 |   1 |    1 |  tg128 @ d32000 |          8.67 ± 0.63 |
+|  39 |          1 |      16 |    2048 |   1 |    1 | pp2048+tg2048 @ d32000 |         16.50 ± 0.08 |
+
+
+| ngl | threads | n_batch | n_ubatch |  fa | mmap |            test |                  t/s |
+| --: | ------: | ------: | -------: | --: | ---: | --------------: | -------------------: |
+| 999 |      16 |    2048 |      512 |   1 |    0 |  pp512 @ d32000 |         73.09 ± 4.45 |
+| 999 |      16 |    2048 |      512 |   1 |    0 |  tg128 @ d32000 |         10.96 ± 0.57 |
+| 999 |      16 |    2048 |      512 |   1 |    0 | pp2048+tg2048 @ d32000 |         21.17 ± 0.08 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 |  pp512 @ d32000 |        476.06 ± 1.52 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 |  tg128 @ d32000 |         10.47 ± 0.61 |
+| 999 |      16 |    2048 |     1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.46 ± 0.10 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 |  pp512 @ d32000 |        455.33 ± 5.13 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 |  tg128 @ d32000 |          9.98 ± 0.63 |
+| 999 |      16 |    2048 |     2046 |   1 |    0 | pp2048+tg2048 @ d32000 |         19.56 ± 0.09 |
+| 999 |      16 |    4096 |      512 |   1 |    0 |  pp512 @ d32000 |        459.42 ± 4.01 |
+| 999 |      16 |    4096 |      512 |   1 |    0 |  tg128 @ d32000 |         10.37 ± 0.69 |
+| 999 |      16 |    4096 |      512 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.26 ± 0.08 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 |  pp512 @ d32000 |        465.21 ± 2.71 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 |  tg128 @ d32000 |         10.34 ± 0.74 |
+| 999 |      16 |    4096 |     1024 |   1 |    0 | pp2048+tg2048 @ d32000 |         20.01 ± 0.09 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 |  pp512 @ d32000 |        441.30 ± 3.01 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 |  tg128 @ d32000 |          9.17 ± 0.60 |
+| 999 |      16 |    4096 |     2046 |   1 |    0 | pp2048+tg2048 @ d32000 |         17.59 ± 0.07 |
+| 999 |      16 |    2048 |      512 |   1 |    1 |  pp512 @ d32000 |         76.55 ± 7.56 |
+| 999 |      16 |    2048 |      512 |   1 |    1 |  tg128 @ d32000 |          7.45 ± 0.42 |
+| 999 |      16 |    2048 |      512 |   1 |    1 | pp2048+tg2048 @ d32000 |         21.02 ± 0.02 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 |  pp512 @ d32000 |      421.98 ± 134.80 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 |  tg128 @ d32000 |         10.45 ± 0.65 |
+| 999 |      16 |    2048 |     1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.12 ± 0.10 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 |  pp512 @ d32000 |        459.47 ± 3.42 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 |  tg128 @ d32000 |          9.83 ± 0.74 |
+| 999 |      16 |    2048 |     2046 |   1 |    1 | pp2048+tg2048 @ d32000 |         19.24 ± 0.08 |
+| 999 |      16 |    4096 |      512 |   1 |    1 |  pp512 @ d32000 |        451.71 ± 9.30 |
+| 999 |      16 |    4096 |      512 |   1 |    1 |  tg128 @ d32000 |         10.49 ± 0.84 |
+| 999 |      16 |    4096 |      512 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.43 ± 0.09 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 |  pp512 @ d32000 |       438.71 ± 87.55 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 |  tg128 @ d32000 |         10.57 ± 0.71 |
+| 999 |      16 |    4096 |     1024 |   1 |    1 | pp2048+tg2048 @ d32000 |         20.38 ± 0.08 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 |  pp512 @ d32000 |        458.29 ± 1.24 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 |  tg128 @ d32000 |          9.38 ± 0.77 |
+| 999 |      16 |    4096 |     2046 |   1 |    1 | pp2048+tg2048 @ d32000 |         18.58 ± 0.09 |
+
+| ngl |  n_cpu_moe | threads | n_ubatch |  fa |            test |                  t/s |
+|:--: | ---------: | ------: | -------: | --: | --------------: | -------------------: |
+| 999 |          0 |      16 |     1024 |   1 |  pp512 @ d32000 |         76.05 ± 5.98 |
+| 999 |          0 |      16 |     1024 |   1 |  tg128 @ d32000 |         10.80 ± 0.65 |
+| 999 |          0 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         20.86 ± 0.10 |
+| 999 |         10 |      16 |     1024 |   1 |  pp512 @ d32000 |         62.54 ± 6.24 |
+| 999 |         10 |      16 |     1024 |   1 |  tg128 @ d32000 |          6.96 ± 0.22 |
+| 999 |         10 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         18.65 ± 0.03 |
+| 999 |         25 |      16 |     1024 |   1 |  pp512 @ d32000 |         60.65 ± 5.05 |
+| 999 |         25 |      16 |     1024 |   1 |  tg128 @ d32000 |          7.77 ± 0.42 |
+| 999 |         25 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         18.96 ± 0.11 |
+| 999 |         50 |      16 |     1024 |   1 |  pp512 @ d32000 |        293.81 ± 5.35 |
+| 999 |         50 |      16 |     1024 |   1 |  tg128 @ d32000 |          8.66 ± 0.61 |
+| 999 |         50 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.87 ± 0.05 |
+| 999 |         99 |      16 |     1024 |   1 |  pp512 @ d32000 |       276.76 ± 66.52 |
+| 999 |         99 |      16 |     1024 |   1 |  tg128 @ d32000 |          9.03 ± 1.07 |
+| 999 |         99 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.99 ± 0.03 |
+| 999 |        100 |      16 |     1024 |   1 |  pp512 @ d32000 |       287.00 ± 13.10 |
+| 999 |        100 |      16 |     1024 |   1 |  tg128 @ d32000 |          9.06 ± 1.31 |
+| 999 |        100 |      16 |     1024 |   1 | pp2048+tg2048 @ d32000 |         16.92 ± 0.06 |
+```
+
+At the moment, I run a single request at the same time, but I would like if possible to run 2, so while my main request is running, I can still ask minor requests. However, I noticed it decreases the performance significantly in both requests, being less than half. I was wondering if it is possible to run one request in the GPU and the other in the CPU (both sharing the model memory to avoid duplication), since at the moment my CPU is completely free (and any attempt to use it with hybrid in a single request has actually decreased my performance, as you can see in the benchmarks).
+
+Also, I hear it exists something called speculative decoding, I'm not sure if that applies to my model (I hear it's more for dense models). Can I use it? Which model should I use for prediction?
+
+Also, Llama supports quantising the key and value cache, but I have read a lot of mixed comments about it, primarily about increasing hallucinations on longs contexts (which is common in Agents), so I'm not sure if I should use it, when to use it, and how much to use it.
+
+--REPLY by d-shehu at 2026-07-24T15:09:06Z--
+1. llama-swap can act as that single endpoint/proxy for Hermes. That allows you to load 2+ models at once @Enderlook. Those models can come from either the same machine or another machine. You can also hook it up to external inference engine such as OpenRouter, Bedrock or OpenAI/Anthropic etc.
+
+For **llama.cpp** the simplest approach is to run 2 instances of llama-server on different ports. One can be used for GPU instance and another for CPU.
+
+Take a look at this llama swap doc for advanced / matrix:
+
+https://github.com/mostlygeek/llama-swap/blob/main/config.example.yaml
+
+2. As I said, parallel may perform better with unified cache. Obviously you'd need to do (1) to increase your throughput but I believe with MOE and depending on your context, even a single model might work. CPU is such as a bottleneck that your single GPU is going to limit you no matter how creative you get.
+
+3. Another option is consider buying a used NVIDIA GeForce RTX 3060 if your motherboard has another PCIe slot. You can look at NVME to PCIe or riser multiplexing especially for PCIe Gen 4.
+
+This will give you more VRAM and you can try running -sm tensor. Tensor split mode will double PP, t/s and memory. That way you can double throughput without the other pieces I mentioned.
+
+
+
