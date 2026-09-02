@@ -1,0 +1,30 @@
+{
+  "name": "The Rented Mind — what one month of AI-assisted coding actually costs",
+  "short_name": "Rented Mind",
+  "description": "14.69 billion tokens, 71,350 requests, $200 paid against $14,914 metered. One month of AI-assisted coding priced against six home machines, every hour counted.",
+  "id": "/costCalcAI/",
+  "start_url": "/costCalcAI/",
+  "scope": "/costCalcAI/",
+  "display": "browser",
+  "background_color": "#e9dcc0",
+  "theme_color": "#e9dcc0",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

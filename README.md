@@ -8,7 +8,14 @@ against six desk rigs (2×3090, RTX 5090, Strix Halo, DGX Spark, Mac Studio
 256/512GB) with honest TCO — hardware, power, capital, and labor — and
 publishes the models, the source evidence, and every poster iteration.
 
-![The Payback Horizon](renders/info7_final.png)
+**Live page:** [svetimfm.github.io/costCalcAI](https://svetimfm.github.io/costCalcAI/) —
+*The Rented Mind*, the interactive report: six sections (the month, the
+machines, the bill at a wage you choose, quality, the fair fight against hosted
+open models, five years) plus a wall of hand-drawn plates after the data
+portraits of W. E. B. Du Bois and the Atlanta University students, Paris
+Exposition, 1900.
+
+[![The Rented Mind — what one month of AI-assisted coding actually costs](assets/og-banner.png)](https://svetimfm.github.io/costCalcAI/)
 
 ## Headline findings
 
@@ -23,6 +30,10 @@ publishes the models, the source evidence, and every poster iteration.
   103. Price the tending above ≈$13/h and no rig ever breaks even.
 - **Quality gap:** the best desk-servable model measures ~56 on the Artificial
   Analysis Intelligence Index vs 63 for the plans — a gap no desk closes.
+- **Speed is not capability:** the only rigs that finish the month inside a
+  month run a 27B-class model that is below the task; the page and the plates
+  draw their hours hollow, for scale only. The best local model lives in the
+  slowest box.
 - **What local still buys:** privacy, control, and ownership — not cost.
 
 ## The posters (iterations v1 → v8)
@@ -37,8 +48,18 @@ Earlier layouts (v1–v5) and every full-page render pass are in `posters/` and
 `renders/`. All posters are single self-contained HTML files, inline SVG,
 990×1400 (A3 at 1:√2), print-ready via `@page{size:A3 portrait}`.
 
+![The Payback Horizon](renders/info7_final.png)
+
 ## Repo layout
 
+- `index.html` — the live page, a self-contained single-file bundle (React,
+  the Claude Design runtime, webfonts and the plates canvas all inline; it
+  unpacks itself in the browser). Full page metadata — Open Graph, Twitter
+  card, JSON-LD, canonical, manifest — lives in its head; a static summary
+  sits under the loader for crawlers without JavaScript
+- `assets/` — favicons (SVG, ICO, PNG, Apple touch icon, maskable),
+  `og-banner.png` (1200×630 social preview), `site.webmanifest`
+- `robots.txt`, `sitemap.xml`, `.nojekyll` — GitHub Pages plumbing
 - `generators/` — Python generators, one per poster iteration
   (`build_infographic*.py`), the companion-report generator, and the
   patch scripts used between render passes
